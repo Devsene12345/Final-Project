@@ -26,6 +26,7 @@ export default function TreeMappingHome() {
       >
         <Text style={styles.btnText}>Register</Text>
       </TouchableOpacity>
+      {/*DashBoard*/}
     </View>
   );
 }
