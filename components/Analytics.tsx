@@ -29,8 +29,6 @@ export default function Analytics() {
         legendFontSize: 12,
       },
     ];
-
-    setChartData(data);
   };
 
   return (
