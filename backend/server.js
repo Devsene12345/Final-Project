@@ -11,7 +11,7 @@ mongoose
   .then(() => console.log("MongoDB Connected"))
   .catch((err) => console.log(err));
 
-app.use("/api/trees", require("./routes/treeRoutes"));
+app.use("/api/auth", require("./routes/authRoutes"));
 
 const PORT = 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

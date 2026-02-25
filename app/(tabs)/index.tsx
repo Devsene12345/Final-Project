@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { TreePine } from "lucide-react-native";
-import { useRouter } from "expo-router";
+import { Link, useRouter } from "expo-router";
 
 export default function TreeMappingHome() {
   const router = useRouter();
@@ -15,16 +15,21 @@ export default function TreeMappingHome() {
       {/*Buttons */}
       <TouchableOpacity
         style={styles.loginBtn}
-        onPress={() => router.push("./login")}
+        onPress={() => router.push("../Pages/Login")}
       >
         <Text style={styles.btnText}>Login</Text>
+        <Link href="../Pages/Login" style={{ color: "white", fontSize: 16 }} />
       </TouchableOpacity>
 
       <TouchableOpacity
         style={styles.registerBtn}
-        onPress={() => router.push("./register")}
+        onPress={() => router.push("../Pages/Register")}
       >
         <Text style={styles.btnText}>Register</Text>
+        <Link
+          href="../Pages/Register"
+          style={{ color: "white", fontSize: 16 }}
+        />
       </TouchableOpacity>
       {/*DashBoard*/}
     </View>
