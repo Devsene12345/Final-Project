@@ -19,7 +19,7 @@ export default function Login() {
 
       await SecureStore.setItemAsync("token", res.data.token);
 
-      router.replace("./components/Dashboard"); // use absolute paths from app/ root
+      router.replace("./app/Dashboard"); // use absolute paths from app/ root
     } catch (err: any) {
       Alert.alert("Done", "Loged in successfully");
     }
@@ -34,6 +34,10 @@ export default function Login() {
         onChangeText={setPassword}
       />
       <Button title="Login" onPress={handleLogin} />
+      <Link
+        href="../app/Dashboard"
+        style={{ color: "blue", marginTop: 10 }}
+      ></Link>
     </View>
   );
 }

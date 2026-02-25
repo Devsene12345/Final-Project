@@ -1,8 +1,8 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import MapScreen from "../app/Pages/MapView";
-import Dashboard from "../app/Pages/Dashboard";
-import Analytics from "../app/Pages/Analytics";
+import MapScreen from "./MapView";
+import Dashboard from "./Dashboard";
+import Analytics from "./Analytics";
 
 const Stack = createNativeStackNavigator();
 

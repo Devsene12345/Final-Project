@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import API from "../../services/api";
+import API from "../app/Services/api";
 
 export default function Dashboard() {
   const [data, setData] = useState<any>({});

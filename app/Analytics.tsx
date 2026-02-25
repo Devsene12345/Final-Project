@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Dimensions } from "react-native";
 import { PieChart } from "react-native-chart-kit";
-import API from "../../services/api";
+import API from "../app/Services/api";
 
 export default function Analytics() {
   const [chartData, setChartData] = useState([]);
