@@ -145,12 +145,12 @@ export default function Analytics() {
         {healthChartData.length > 0 ? (
           <PieChart
             data={healthChartData}
-            width={screenWidth - 32}
+            width={screenWidth - 40}
             height={220}
             chartConfig={chartConfig}
             accessor={"population"}
             backgroundColor={"transparent"}
-            paddingLeft={"15"}
+            paddingLeft={"20"}
           />
         ) : (
           <View style={styles.noData}>
@@ -165,8 +165,8 @@ export default function Analytics() {
         <Text style={styles.subtitle}>Total Mapped Trees: {totalTrees}</Text>
         <PieChart
           data={speciesChartData}
-          width={screenWidth - 32}
-          height={260}
+          width={screenWidth - 22}
+          height={150}
           chartConfig={chartConfig}
           accessor={"population"}
           backgroundColor={"transparent"}
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 10,
     marginTop: 8,
   },
   statCard: {
@@ -252,8 +252,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    gap: 6,
-    minWidth: "30%",
+    gap: 10,
+    minWidth: "100%",
   },
   colorDot: {
     width: 10,

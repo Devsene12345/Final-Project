@@ -8,7 +8,6 @@ export default function TabLayout() {
         headerShown: false,
         tabBarActiveTintColor: "#2e7d32",
         tabBarStyle: {
-          position: "absolute",
           bottom: 15,
           height: 65,
           left: 20,

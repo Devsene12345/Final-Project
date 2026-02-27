@@ -44,6 +44,15 @@ export default function Dashboard() {
         <Text style={styles.mapText}>Open Tree Map</Text>
       </TouchableOpacity>
 
+      {/* ===== ADD TREE CARD ===== */}
+      <TouchableOpacity
+        style={styles.mapCard}
+        onPress={() => router.push("/modal")}
+      >
+        <Ionicons name="map" size={30} color="#fff" />
+        <Text style={styles.mapText}>Add Tree</Text>
+      </TouchableOpacity>
+
       {/* ===== TREE HEALTH TRENDS ===== */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Tree Health Trends</Text>
@@ -150,6 +159,15 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   mapCard: {
+    marginTop: 15,
+    backgroundColor: "#2e7d32",
+    padding: 18,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  TreeCard: {
     marginTop: 15,
     backgroundColor: "#2e7d32",
     padding: 18,

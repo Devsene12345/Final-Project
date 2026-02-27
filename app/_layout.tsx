@@ -8,6 +8,7 @@ export default function Layout() {
       <Stack.Screen name="register" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="Map" />
+      <Stack.Screen name="modal/AddTree" />
     </Stack>
   );
 }
