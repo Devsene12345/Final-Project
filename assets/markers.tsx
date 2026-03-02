@@ -171,4 +171,18 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.058993,
     height: 572.8,
   },
+  {
+    id: 39,
+    description: "Sal Tree. Badull Cricket ground road",
+    latitude: 6.9879319,
+    longitude: 81.0633548,
+    height: 564.5,
+  },
+  {
+    id: 40,
+    description: "Mara Tree. Uva provincial Library Auditorium",
+    latitude: 6.98768,
+    longitude: 81.0625334,
+    height: 562.3,
+  },
 ];
