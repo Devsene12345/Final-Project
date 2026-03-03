@@ -1,39 +1,23 @@
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+// app/index.tsx
+import React, { useEffect } from "react";
 import { useRouter } from "expo-router";
+import { View } from "react-native";
+import LoadingScreen from "../components/LoadingScreen";
+import { useAuth } from "./context/AuthContext";
 
-export default function Home() {
+export default function Index() {
   const router = useRouter();
+  const { firebaseUser, loading } = useAuth();
+
+  useEffect(() => {
+    if (loading) return;
+    if (firebaseUser) router.replace("../(tabs)/Dashboard");
+    else router.replace("/Login");
+  }, [firebaseUser, loading]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Smart Urban Tree Mapping</Text>
-
-      <TouchableOpacity
-        style={styles.loginBtn}
-        onPress={() => router.push("/Login")}
-      >
-        <Text style={styles.btnText}>Login</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={styles.registerBtn}
-        onPress={() => router.push("/Register")}
-      >
-        <Text style={styles.btnText}>Register</Text>
-      </TouchableOpacity>
+    <View style={{ flex: 1 }}>
+      <LoadingScreen text="Starting..." />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", alignItems: "center" },
-  title: { fontSize: 22, marginBottom: 40 },
-  loginBtn: {
-    backgroundColor: "green",
-    padding: 15,
-    width: 200,
-    marginBottom: 15,
-  },
-  registerBtn: { backgroundColor: "blue", padding: 15, width: 200 },
-  btnText: { color: "white", textAlign: "center" },
-});

@@ -1,245 +1,269 @@
+// app/(tabs)/dashboard.tsx
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
+  TouchableOpacity,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import {
+  collection,
+  onSnapshot,
+  query,
+  where,
+  orderBy,
+} from "firebase/firestore";
+import { db } from "../FirebaseConfig";
+import { useAuth } from "../context/AuthContext";
+import { Ionicons } from "@expo/vector-icons";
 
-export default function Dashboard() {
+export default function DashboardScreen() {
   const router = useRouter();
+  const { appUser, logout } = useAuth();
 
-  // Demo Data (replace with backend later)
-  const totalTrees = 1245;
-  const riskTrees = 87;
+  const [trees, setTrees] = useState<{ id: string; [key: string]: any }[]>([]);
+  const [alerts, setAlerts] = useState<{ id: string; [key: string]: any }[]>(
+    [],
+  );
+
+  // Load verified trees
+  useEffect(() => {
+    const q = query(collection(db, "trees"), where("verified", "==", true));
+    return onSnapshot(q, (snap) =>
+      setTrees(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+  }, []);
+
+  // Load active alerts
+  useEffect(() => {
+    const qAlerts = query(
+      collection(db, "alerts"),
+      where("resolved", "==", false),
+      orderBy("createdAt", "desc"),
+    );
+    return onSnapshot(qAlerts, (snap) =>
+      setAlerts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    );
+  }, []);
+
+  const totalTrees = trees.length;
+  const riskTrees = trees.filter((t) => t.riskLevel === "High").length;
+
+  // Species distribution
+  const speciesCount = trees.reduce(
+    (acc, t) => {
+      const key = t.species || "Other";
+      (acc as Record<string, number>)[key] =
+        ((acc as Record<string, number>)[key] || 0) + 1;
+      return acc;
+    },
+    { Oak: 0, Maple: 0, Pine: 0, Other: 0 },
+  );
+
+  const percent = (val: number) => ((val / (totalTrees || 1)) * 100).toFixed(1);
 
   return (
-    <ScrollView style={styles.container}>
-      {/* Header */}
-      <Text style={styles.header}>🌳 Tree Monitoring Dashboard</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      {/* ---------------- HEADER ---------------- */}
+      <Text style={styles.headerTitle}>🌳 Tree Monitoring Dashboard</Text>
 
-      {/* ===== TOP CARDS ===== */}
-      <View style={styles.row}>
-        <View style={styles.card}>
-          <Ionicons name="leaf" size={28} color="#2e7d32" />
-          <Text style={styles.cardTitle}>Total Trees</Text>
-          <Text style={styles.cardValue}>{totalTrees}</Text>
+      {/* ---------------- CARDS ---------------- */}
+      <View style={styles.cardRow}>
+        <View style={[styles.infoCard, { backgroundColor: "#e8f8ee" }]}>
+          <Text style={styles.cardIcon}>🍃</Text>
+          <Text style={styles.cardLabel}>Total Trees</Text>
+          <Text style={styles.cardNumber}>{totalTrees}</Text>
         </View>
 
-        <View style={[styles.card, styles.riskCard]}>
-          <MaterialIcons name="warning" size={28} color="red" />
-          <Text style={styles.cardTitle}>Risk Trees</Text>
-          <Text style={styles.cardValue}>{riskTrees}</Text>
+        <View style={[styles.infoCard, { backgroundColor: "#ffe8e8" }]}>
+          <Text style={styles.cardIcon}>⚠️</Text>
+          <Text style={styles.cardLabel}>Risk Trees</Text>
+          <Text style={styles.cardNumber}>{riskTrees}</Text>
         </View>
       </View>
 
-      {/* ===== MAP CARD ===== */}
+      {/* ---------------- MAP BUTTON ---------------- */}
       <TouchableOpacity
-        style={styles.mapCard}
-        onPress={() => router.push("/MapView")}
+        style={styles.mapBtn}
+        onPress={() => router.push("/map")}
       >
-        <Ionicons name="map" size={30} color="#fff" />
-        <Text style={styles.mapText}>Open Tree Map</Text>
+        <Text style={styles.mapBtnText}>Open Tree Map</Text>
       </TouchableOpacity>
 
-      {/* ===== ADD TREE CARD ===== */}
+      {/* ---------------- ADD TREE BUTTON ---------------- */}
       <TouchableOpacity
-        style={styles.mapCard}
+        style={styles.addBtn}
         onPress={() => router.push("/modal")}
       >
-        <Ionicons name="map" size={30} color="#fff" />
-        <Text style={styles.mapText}>Add Tree</Text>
+        <Text style={styles.addBtnText}>Add Tree</Text>
       </TouchableOpacity>
 
-      {/* ===== TREE HEALTH TRENDS ===== */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Tree Health Trends</Text>
+      {/* ---------------- HEALTH TRENDS ---------------- */}
+      <Text style={styles.sectionTitle}>Tree Health Trends</Text>
+      <View style={styles.trendBox}>
+        <View style={styles.trendBar}></View>
+      </View>
 
-        <View style={styles.trendBox}>
-          {/* Simple Trend Placeholder Line */}
-          <View style={styles.trendLine} />
+      {/* ---------------- RECENT ALERTS ---------------- */}
+      <Text style={styles.sectionTitle}>Recent Alerts</Text>
+
+      {alerts.slice(0, 3).map((alert) => (
+        <View key={alert.id} style={styles.alertCard}>
+          <View
+            style={[
+              styles.dot,
+              {
+                backgroundColor:
+                  alert.level === "High"
+                    ? "red"
+                    : alert.level === "Medium"
+                      ? "yellow"
+                      : "green",
+              },
+            ]}
+          ></View>
+
+          <Text style={styles.alertText}>{alert.message || "Alert"}</Text>
+
+          <Text style={styles.alertTime}>
+            {formatTime(alert.createdAt?.seconds)}
+          </Text>
         </View>
-      </View>
+      ))}
 
-      {/* ===== SPECIES DISTRIBUTION ===== */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Species Distribution</Text>
+      <TouchableOpacity onPress={() => router.push("/alerts")}>
+        <Text style={styles.viewAll}>View All Alerts</Text>
+      </TouchableOpacity>
 
-        {renderBar("Oak", 80, "#2e7d32")}
-        {renderBar("Maple", 60, "#a5d6a7")}
-        {renderBar("Pine", 30, "#90caf9")}
-        {renderBar("Other", 40, "#bdbdbd")}
-      </View>
+      {/* ---------------- LOGOUT ---------------- */}
+      <TouchableOpacity
+        style={styles.logoutBtn}
+        onPress={() => router.push("/Login")}
+      >
+        <Ionicons name="map" size={30} color="#fff" />
+        <Text style={styles.logoutText}>Logout</Text>
+      </TouchableOpacity>
 
-      {/* ===== RECENT ALERTS ===== */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recent Alerts</Text>
-
-        {alertItem("Disease", "2 hours", "red")}
-        {alertItem("Pest", "4 hours", "#cddc39")}
-        {alertItem("Water Stress", "1 Day", "#4caf50")}
-
-        <TouchableOpacity style={styles.viewAllBtn}>
-          <Text style={styles.viewAllText}>View All Alerts</Text>
-        </TouchableOpacity>
-
-        {/* ===== Logout Button ===== */}
-        <TouchableOpacity
-          style={styles.logout}
-          onPress={() => router.push("/Login")}
-        >
-          <Ionicons name="map" size={30} color="#fff" />
-          <Text style={styles.mapText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
+      <View style={{ height: 50 }} />
     </ScrollView>
   );
 }
 
-/* ===== Helper Components ===== */
-
-const renderBar = (label: string, width: number, color: string) => (
-  <View style={{ marginBottom: 10 }} key={label}>
-    <Text style={{ marginBottom: 3 }}>{label}</Text>
-    <View style={styles.barBackground}>
-      <View
-        style={[styles.barFill, { width: `${width}%`, backgroundColor: color }]}
-      />
-    </View>
-  </View>
-);
-
-const alertItem = (title: string, time: string, color: string) => (
-  <View style={styles.alertItem} key={title}>
-    <View style={[styles.dot, { backgroundColor: color }]} />
-    <Text style={{ flex: 1 }}>{title}</Text>
-    <Text style={{ color: "gray" }}>{time}</Text>
-  </View>
-);
-
-/* ===== Styles ===== */
+// Convert timestamp to "2 hours", "1 day", etc.
+function formatTime(seconds: number | undefined) {
+  if (!seconds) return "";
+  const diff = Date.now() / 1000 - seconds;
+  if (diff < 3600) return Math.floor(diff / 60) + " min";
+  if (diff < 86400) return Math.floor(diff / 3600) + " hours";
+  return Math.floor(diff / 86400) + " days";
+}
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { padding: 16 },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+
+  // Cards
+  cardRow: { flexDirection: "row", justifyContent: "space-between" },
+  infoCard: {
+    width: "48%",
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 10,
+    alignItems: "center",
+  },
+  cardIcon: { fontSize: 26 },
+  cardLabel: { fontSize: 14, color: "#333" },
+  cardNumber: { fontSize: 28, fontWeight: "800", marginTop: 4 },
+
+  // Buttons
+  mapBtn: {
+    backgroundColor: "#1b6e21",
     padding: 16,
-    backgroundColor: "#f4f6f8",
-  },
-  header: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 20,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  card: {
-    flex: 1,
-    backgroundColor: "#fff",
-    padding: 15,
-    borderRadius: 12,
-    alignItems: "center",
-    marginRight: 8,
-    elevation: 3,
-  },
-  riskCard: {
-    marginRight: 0,
-    backgroundColor: "#ffe5e5",
-  },
-  cardTitle: {
-    marginTop: 5,
-    fontWeight: "600",
-  },
-  cardValue: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginTop: 5,
-  },
-  mapCard: {
-    marginTop: 15,
-    backgroundColor: "#2e7d32",
-    padding: 18,
-    borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  TreeCard: {
-    marginTop: 15,
-    backgroundColor: "#2e7d32",
-    padding: 18,
-    borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mapText: {
-    color: "#fff",
-    fontWeight: "bold",
-    marginLeft: 10,
-  },
-  logout: {
-    marginTop: 15,
-    backgroundColor: "#ec2309",
-    padding: 18,
-    borderRadius: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: 20,
-  },
-  section: {
-    marginTop: 25,
-  },
-  sectionTitle: {
-    fontWeight: "bold",
-    marginBottom: 10,
-    fontSize: 16,
-  },
-  trendBox: {
-    backgroundColor: "#fff",
-    height: 120,
-    borderRadius: 12,
-    justifyContent: "center",
+    borderRadius: 16,
+    marginTop: 20,
     alignItems: "center",
   },
-  trendLine: {
-    width: "80%",
-    height: 4,
-    backgroundColor: "#81c784",
-  },
-  barBackground: {
-    height: 8,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 5,
-  },
-  barFill: {
-    height: 8,
-    borderRadius: 5,
-  },
-  alertItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  dot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    marginRight: 10,
-  },
-  viewAllBtn: {
+  mapBtnText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+
+  addBtn: {
+    backgroundColor: "#1b6e21",
+    padding: 16,
+    borderRadius: 16,
     marginTop: 10,
     alignItems: "center",
   },
-  viewAllText: {
-    color: "#2e7d32",
-    fontWeight: "bold",
+  addBtnText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+
+  // Sections
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginVertical: 12,
   },
+
+  trendBox: {
+    backgroundColor: "#fff",
+    height: 80,
+    borderRadius: 16,
+    padding: 12,
+    justifyContent: "center",
+  },
+  trendBar: {
+    height: 6,
+    width: "85%",
+    backgroundColor: "#8fd189",
+    borderRadius: 10,
+  },
+
+  barTrack: {
+    height: 10,
+    backgroundColor: "#e0e0e0",
+    borderRadius: 10,
+    marginTop: 6,
+  },
+  barFill: {
+    height: 10,
+    borderRadius: 10,
+  },
+  speciesLabel: { fontSize: 15, fontWeight: "500" },
+
+  // Alerts
+  alertCard: {
+    backgroundColor: "#fff",
+    padding: 14,
+    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  dot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  alertText: { flex: 1, fontSize: 16 },
+  alertTime: { color: "#666" },
+  viewAll: {
+    textAlign: "center",
+    color: "#0a8638",
+    fontWeight: "700",
+    marginVertical: 12,
+  },
+
+  logoutBtn: {
+    backgroundColor: "#d72626",
+    padding: 16,
+    borderRadius: 14,
+    marginTop: 10,
+    alignItems: "center",
+  },
+  logoutText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });

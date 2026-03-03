@@ -7,6 +7,7 @@ export interface TreeMarker {
   latitude: number;
   longitude: number;
   height: number;
+  risklevel: "Low" | "Medium" | "High";
 }
 
 export const treeMarkers: TreeMarker[] = [
@@ -16,6 +17,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9940607,
     longitude: 81.0483321,
     height: 632.1,
+    risklevel: "Low",
   },
   {
     id: 7,
@@ -23,6 +25,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9816343,
     longitude: 81.0773486,
     height: 671.9,
+    risklevel: "Low",
   },
   {
     id: 18,
@@ -30,6 +33,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9940431,
     longitude: 81.0482076,
     height: 615.7,
+    risklevel: "Low",
   },
   {
     id: 19,
@@ -37,6 +41,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9945209,
     longitude: 81.0483672,
     height: 641.4,
+    risklevel: "Low",
   },
   {
     id: 20,
@@ -44,6 +49,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9943463,
     longitude: 81.0482035,
     height: 641.4,
+    risklevel: "Low",
   },
   {
     id: 21,
@@ -51,6 +57,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9906844,
     longitude: 81.0543706,
     height: 574.5,
+    risklevel: "Low",
   },
   {
     id: 22,
@@ -58,6 +65,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9906074,
     longitude: 81.0547989,
     height: 574.5,
+    risklevel: "Low",
   },
   {
     id: 23,
@@ -65,6 +73,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9905325,
     longitude: 81.0551034,
     height: 578.1,
+    risklevel: "High",
   },
   {
     id: 24,
@@ -72,6 +81,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9901532,
     longitude: 81.0557294,
     height: 569.4,
+    risklevel: "Medium",
   },
   {
     id: 25,
@@ -79,6 +89,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9897442,
     longitude: 81.0563429,
     height: 583.0,
+    risklevel: "Medium",
   },
   {
     id: 26,
@@ -86,6 +97,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.989804,
     longitude: 81.05673,
     height: 580.5,
+    risklevel: "Medium",
   },
   {
     id: 27,
@@ -93,6 +105,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9897887,
     longitude: 81.056741,
     height: 580.5,
+    risklevel: "Medium",
   },
   {
     id: 28,
@@ -100,6 +113,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9897202,
     longitude: 81.0567471,
     height: 580.5,
+    risklevel: "High",
   },
   {
     id: 29,
@@ -107,6 +121,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9895597,
     longitude: 81.0569132,
     height: 577.2,
+    risklevel: "High",
   },
   {
     id: 30,
@@ -114,6 +129,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9903031,
     longitude: 81.0555566,
     height: 578.1,
+    risklevel: "High",
   },
   {
     id: 31,
@@ -121,6 +137,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9900179,
     longitude: 81.0581226,
     height: 575.4,
+    risklevel: "High",
   },
   {
     id: 32,
@@ -128,6 +145,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9899949,
     longitude: 81.0581953,
     height: 575.4,
+    risklevel: "High",
   },
   {
     id: 33,
@@ -135,6 +153,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9899575,
     longitude: 81.0582564,
     height: 574.2,
+    risklevel: "High",
   },
   {
     id: 34,
@@ -142,6 +161,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9898673,
     longitude: 81.0580618,
     height: 575.4,
+    risklevel: "High",
   },
   {
     id: 35,
@@ -149,6 +169,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.989877,
     longitude: 81.0579906,
     height: 574.3,
+    risklevel: "High",
   },
   {
     id: 36,
@@ -156,6 +177,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9899194,
     longitude: 81.0575646,
     height: 576.4,
+    risklevel: "High",
   },
   {
     id: 37,
@@ -163,6 +185,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9903363,
     longitude: 81.058425,
     height: 572.8,
+    risklevel: "Medium",
   },
   {
     id: 38,
@@ -170,6 +193,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9904242,
     longitude: 81.058993,
     height: 572.8,
+    risklevel: "Medium",
   },
   {
     id: 39,
@@ -177,6 +201,7 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.9879319,
     longitude: 81.0633548,
     height: 564.5,
+    risklevel: "High",
   },
   {
     id: 40,
@@ -184,5 +209,62 @@ export const treeMarkers: TreeMarker[] = [
     latitude: 6.98768,
     longitude: 81.0625334,
     height: 562.3,
+    risklevel: "Medium",
+  },
+  {
+    id: 41,
+    description: "Bokineeya. Uva Provincial Auditorium ",
+    latitude: 6.9876894,
+    longitude: 81.0624826,
+    height: 562.3,
+    risklevel: "Medium",
+  },
+  {
+    id: 42,
+    description: "Mara Tree. Vinston Dias Ground",
+    latitude: 6.9876533,
+    longitude: 81.06154,
+    height: 566,
+    risklevel: "High",
+  },
+  {
+    id: 43,
+    description: "Vinston Dias Mara Tree 2",
+    latitude: 6.9876515,
+    longitude: 81.0612876,
+    height: 563.8,
+    risklevel: "High",
+  },
+  {
+    id: 44,
+    description: "Vinston Dias Mara Tree 3",
+    latitude: 6.9877698,
+    longitude: 81.0610903,
+    height: 563.8,
+    risklevel: "High",
+  },
+  {
+    id: 45,
+    description: "Vinston Dias Mango Tree",
+    latitude: 6.9878204,
+    longitude: 81.0609766,
+    height: 572.58,
+    risklevel: "High",
+  },
+  {
+    id: 46,
+    description: "Vinston Dias Mara Tree 4",
+    latitude: 6.9878799,
+    longitude: 81.0608635,
+    height: 563.8,
+    risklevel: "High",
+  },
+  {
+    id: 47,
+    description: "Thekka Tree 2. Vihara maha devi college",
+    latitude: 6.9903537,
+    longitude: 81.0588453,
+    height: 572.8,
+    risklevel: "Medium",
   },
 ];

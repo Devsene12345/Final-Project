@@ -1,55 +1,87 @@
-import { View, TextInput, Button, Alert, StyleSheet } from "react-native";
+// app/Login.tsx
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+} from "react-native";
 import { useRouter } from "expo-router";
-import { useState } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "./FirebaseConfig";
 
 export default function Login() {
   const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const handleLogin = async () => {
+  const onLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Missing", "Please enter email and password.");
+      return;
+    }
+
     try {
-      const storedUser = await AsyncStorage.getItem("user");
-
-      if (!storedUser) {
-        Alert.alert("Error", "No registered user found");
-        return;
-      }
-
-      const user = JSON.parse(storedUser);
-
-      if (email === user.email && password === user.password) {
-        Alert.alert("Success", "Login Successful");
-        router.replace("/(tabs)/Dashboard");
-      } else {
-        Alert.alert("Error", "Invalid Credentials");
-      }
-    } catch (error) {
-      Alert.alert("Error", "Login failed");
+      setBusy(true);
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      router.replace("../(tabs)/dashboard");
+    } catch (e: any) {
+      Alert.alert("Login failed", e?.message ?? "Unknown error");
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
     <View style={styles.container}>
+      <Text style={styles.title}>Login</Text>
+
       <TextInput
-        placeholder="Email"
         style={styles.input}
+        placeholder="Email"
+        autoCapitalize="none"
+        keyboardType="email-address"
+        value={email}
         onChangeText={setEmail}
       />
+
       <TextInput
+        style={styles.input}
         placeholder="Password"
         secureTextEntry
-        style={styles.input}
+        value={password}
         onChangeText={setPassword}
       />
-      <Button title="LOGIN" onPress={handleLogin} />
+
+      <TouchableOpacity style={styles.btn} onPress={onLogin} disabled={busy}>
+        <Text style={styles.btnText}>{busy ? "Logging in..." : "Login"}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => router.push("/Register")}>
+        <Text style={styles.link}>No account? Register</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 20 },
-  input: { borderWidth: 1, marginBottom: 15, padding: 10 },
+  container: { flex: 1, justifyContent: "center", padding: 20, gap: 12 },
+  title: {
+    fontSize: 26,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 10, padding: 12 },
+  btn: {
+    backgroundColor: "#18bd16",
+    padding: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  btnText: { color: "#fff", fontWeight: "700" },
+  link: { textAlign: "center", marginTop: 10, textDecorationLine: "underline" },
 });

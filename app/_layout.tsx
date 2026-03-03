@@ -1,14 +1,18 @@
+// app/_layout.tsx
+import React from "react";
 import { Stack } from "expo-router";
+import { AuthProvider } from "./context/AuthContext";
 
-export default function Layout() {
+export default function RootLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="login" />
-      <Stack.Screen name="register" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="Map" />
-      <Stack.Screen name="modal/AddTree" />
-    </Stack>
+    <AuthProvider>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="Login" />
+        <Stack.Screen name="Register" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="modal" options={{ presentation: "modal" }} />
+      </Stack>
+    </AuthProvider>
   );
 }

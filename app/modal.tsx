@@ -1,521 +1,341 @@
+// app/modal.tsx
 import React, { useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
-  ScrollView,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
+  StyleSheet,
   Alert,
-  Image,
-  Platform,
+  ScrollView,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import * as Location from "expo-location";
+import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytes, getStorage } from "firebase/storage";
+import { db } from "./FirebaseConfig";
+import { useAuth } from "./context/AuthContext";
 
-export default function ModalScreen() {
-  const [treeData, setTreeData] = useState({
-    species: "",
-    latitude: "",
-    longitude: "",
-    health: "healthy",
-    notes: "",
-  });
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+const storage = getStorage();
 
-  const healthOptions = [
-    {
-      value: "healthy",
-      label: "Healthy",
-      color: "#2e7d32",
-      icon: "checkmark-circle",
-    },
-    { value: "at-risk", label: "At Risk", color: "#f57c00", icon: "warning" },
-    {
-      value: "critical",
-      label: "Critical",
-      color: "#d32f2f",
-      icon: "alert-circle",
-    },
-  ];
+export default function AddTreeModal() {
+  const router = useRouter();
+  const { appUser } = useAuth();
 
-  const getCurrentLocation = async () => {
-    try {
-      setIsLoading(true);
-      const { status } = await Location.requestForegroundPermissionsAsync();
+  const [species, setSpecies] = useState("");
+  const [notes, setNotes] = useState("");
 
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Denied",
-          "Location permission is required to add tree location."
-        );
-        return;
-      }
+  const [health, setHealth] = useState("healthy");
+  const [riskLevel, setRiskLevel] = useState("Low");
 
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+  const [lat, setLat] = useState(0.0);
+  const [lng, setLng] = useState(0.0);
 
-      setTreeData({
-        ...treeData,
-        latitude: location.coords.latitude.toFixed(6),
-        longitude: location.coords.longitude.toFixed(6),
-      });
+  const [images, setImages] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
 
-      Alert.alert("Success", "Location captured successfully!");
-    } catch (error) {
-      Alert.alert("Error", "Failed to get current location. Please try again.");
-      console.error(error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
+  // -------- PICK IMAGE --------
   const pickImage = async () => {
-    try {
-      const { status } =
-        await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission denied", "Please enable gallery access.");
+      return;
+    }
 
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Denied",
-          "Camera roll permission is required to add photos."
-        );
-        return;
-      }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      allowsMultipleSelection: true,
+      quality: 0.7,
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    });
 
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: false,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        setPhotos([...photos, result.assets[0].uri]);
-      }
-    } catch (error) {
-      Alert.alert("Error", "Failed to pick image. Please try again.");
-      console.error(error);
+    if (!res.canceled) {
+      setImages(res.assets.map((a) => a.uri));
     }
   };
 
+  // -------- TAKE PHOTO --------
   const takePhoto = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Permission denied", "Please enable camera access.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setImages([result.assets[0].uri]);
+    }
+  };
+
+  // -------- GET LOCATION --------
+  const getCurrentLocation = async () => {
+    const perm = await Location.requestForegroundPermissionsAsync();
+    if (perm.status !== "granted") {
+      Alert.alert("Permission", "Location permission is required.");
+      return;
+    }
+
+    const loc = await Location.getCurrentPositionAsync({});
+    setLat(loc.coords.latitude);
+    setLng(loc.coords.longitude);
+  };
+
+  // -------- UPLOAD PHOTOS --------
+  const uploadPhotos = async (treeId: string) => {
+    const urls: string[] = [];
+    for (let i = 0; i < images.length; i++) {
+      const response = await fetch(images[i]);
+      const blob = await response.blob();
+
+      const imageRef = ref(
+        storage,
+        `trees/${appUser?.uid}/${treeId}/img${i}.jpg`,
+      );
+      await uploadBytes(imageRef, blob);
+      const url = await getDownloadURL(imageRef);
+      urls.push(url);
+    }
+    return urls;
+  };
+
+  // -------- SUBMIT TREE --------
+  const submit = async () => {
+    if (!species.trim()) {
+      Alert.alert("Missing", "Tree species is required.");
+      return;
+    }
+
     try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      setBusy(true);
 
-      if (status !== "granted") {
-        Alert.alert(
-          "Permission Denied",
-          "Camera permission is required to take photos."
-        );
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
-        quality: 0.8,
+      const treeRef = await addDoc(collection(db, "trees"), {
+        species,
+        health,
+        riskLevel,
+        notes,
+        latitude: lat,
+        longitude: lng,
+        verified: false,
+        createdBy: appUser?.uid,
+        createdAt: serverTimestamp(),
+        photoUrls: [],
       });
 
-      if (!result.canceled && result.assets[0]) {
-        setPhotos([...photos, result.assets[0].uri]);
+      const photoUrls = await uploadPhotos(treeRef.id);
+
+      if (photoUrls.length > 0) {
+        const { updateDoc, doc } = await import("firebase/firestore");
+        await updateDoc(doc(db, "trees", treeRef.id), { photoUrls });
       }
-    } catch (error) {
-      Alert.alert("Error", "Failed to take photo. Please try again.");
-      console.error(error);
-    }
-  };
 
-  const removePhoto = (index: number) => {
-    const newPhotos = photos.filter((_, i) => i !== index);
-    setPhotos(newPhotos);
-  };
-
-  const handleSubmit = async () => {
-    // Validation
-    if (!treeData.species.trim()) {
-      Alert.alert("Validation Error", "Please enter the tree species.");
-      return;
-    }
-
-    if (!treeData.latitude || !treeData.longitude) {
-      Alert.alert("Validation Error", "Please capture the tree location.");
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-
-      // TODO: Replace with your MongoDB API endpoint
-      // const response = await fetch('YOUR_API_ENDPOINT/trees', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     ...treeData,
-      //     photos: photos,
-      //     timestamp: new Date().toISOString(),
-      //   }),
-      // });
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      Alert.alert("Success!", "Tree data has been saved successfully.", [
-        {
-          text: "Add Another",
-          onPress: () => {
-            setTreeData({
-              species: "",
-              latitude: "",
-              longitude: "",
-              health: "healthy",
-              notes: "",
-            });
-            setPhotos([]);
-          },
-        },
-        { text: "Done", style: "cancel" },
-      ]);
-    } catch (error) {
-      Alert.alert("Error", "Failed to save tree data. Please try again.");
-      console.error(error);
+      Alert.alert("Success", "Tree added successfully!");
+      router.back();
+    } catch (e) {
+      const errorMessage =
+        e instanceof Error ? e.message : "An unknown error occurred";
+      Alert.alert("Error", errorMessage);
     } finally {
-      setIsLoading(false);
+      setBusy(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Ionicons name="leaf" size={48} color="#2e7d32" />
-          <Text style={styles.headerTitle}>Add New Tree</Text>
-          <Text style={styles.headerSubtitle}>
-            Record tree information and location
-          </Text>
-        </View>
+    <ScrollView contentContainerStyle={styles.container}>
+      {/* HEADER */}
+      <View style={styles.header}>
+        <Text style={styles.headerIcon}>🍃</Text>
+        <Text style={styles.headerTitle}>Add New Tree</Text>
+        <Text style={styles.headerSub}>
+          Record tree information and location
+        </Text>
+      </View>
 
-        {/* Tree Species */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Tree Species *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g., Mango, Coconut, Jak"
-            value={treeData.species}
-            onChangeText={(text) => setTreeData({ ...treeData, species: text })}
-          />
-        </View>
+      {/* SPECIES */}
+      <Text style={styles.label}>Tree Species *</Text>
+      <TextInput
+        style={styles.input}
+        value={species}
+        onChangeText={setSpecies}
+        placeholder="e.g., Mango, Coconut, Jak"
+      />
 
-        {/* Location */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Location *</Text>
-          <View style={styles.locationContainer}>
-            <View style={styles.coordinateInputs}>
-              <View style={styles.coordinateInput}>
-                <Text style={styles.coordinateLabel}>Latitude</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="0.000000"
-                  value={treeData.latitude}
-                  onChangeText={(text) =>
-                    setTreeData({ ...treeData, latitude: text })
-                  }
-                  keyboardType="numeric"
-                />
-              </View>
-              <View style={styles.coordinateInput}>
-                <Text style={styles.coordinateLabel}>Longitude</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="0.000000"
-                  value={treeData.longitude}
-                  onChangeText={(text) =>
-                    setTreeData({ ...treeData, longitude: text })
-                  }
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-            <TouchableOpacity
-              style={styles.locationButton}
-              onPress={getCurrentLocation}
-              disabled={isLoading}
-            >
-              <Ionicons name="locate" size={20} color="#fff" />
-              <Text style={styles.locationButtonText}>
-                {isLoading ? "Getting Location..." : "Use Current Location"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+      {/* LOCATION */}
+      <Text style={styles.label}>Location *</Text>
+      <View style={styles.locationRow}>
+        <TextInput
+          style={styles.locationInput}
+          value={lat.toFixed(6)}
+          editable={false}
+        />
+        <TextInput
+          style={styles.locationInput}
+          value={lng.toFixed(6)}
+          editable={false}
+        />
+      </View>
 
-        {/* Health Status */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Health Status *</Text>
-          <View style={styles.healthOptions}>
-            {healthOptions.map((option) => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.healthOption,
-                  treeData.health === option.value && {
-                    borderColor: option.color,
-                    backgroundColor: `${option.color}10`,
-                  },
-                ]}
-                onPress={() =>
-                  setTreeData({ ...treeData, health: option.value })
-                }
-              >
-                <Ionicons
-                  name={option.icon as any}
-                  size={24}
-                  color={
-                    treeData.health === option.value ? option.color : "#757575"
-                  }
-                />
-                <Text
-                  style={[
-                    styles.healthOptionText,
-                    treeData.health === option.value && {
-                      color: option.color,
-                      fontWeight: "600",
-                    },
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+      <TouchableOpacity style={styles.bigButton} onPress={getCurrentLocation}>
+        <Text style={styles.bigButtonText}>Use Current Location</Text>
+      </TouchableOpacity>
 
-        {/* Photos */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Photos</Text>
-          <View style={styles.photoButtons}>
-            <TouchableOpacity style={styles.photoButton} onPress={takePhoto}>
-              <Ionicons name="camera" size={24} color="#2e7d32" />
-              <Text style={styles.photoButtonText}>Take Photo</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.photoButton} onPress={pickImage}>
-              <Ionicons name="images" size={24} color="#2e7d32" />
-              <Text style={styles.photoButtonText}>Choose from Gallery</Text>
-            </TouchableOpacity>
-          </View>
+      {/* HEALTH STATUS */}
+      <Text style={styles.label}>Health Status *</Text>
 
-          {photos.length > 0 && (
-            <View style={styles.photoGallery}>
-              {photos.map((photo, index) => (
-                <View key={index} style={styles.photoContainer}>
-                  <Image source={{ uri: photo }} style={styles.photo} />
-                  <TouchableOpacity
-                    style={styles.removePhotoButton}
-                    onPress={() => removePhoto(index)}
-                  >
-                    <Ionicons name="close-circle" size={24} color="#d32f2f" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+      <TouchableOpacity
+        style={[
+          styles.healthCard,
+          health === "healthy" && styles.selectedHealthy,
+        ]}
+        onPress={() => setHealth("healthy")}
+      >
+        <Text style={styles.healthIcon}>✔️</Text>
+        <Text style={[styles.healthText, { color: "#1b6e21" }]}>Healthy</Text>
+      </TouchableOpacity>
 
-        {/* Notes */}
-        <View style={styles.section}>
-          <Text style={styles.label}>Additional Notes</Text>
-          <TextInput
-            style={[styles.input, styles.notesInput]}
-            placeholder="Add any observations or details..."
-            value={treeData.notes}
-            onChangeText={(text) => setTreeData({ ...treeData, notes: text })}
-            multiline
-            numberOfLines={4}
-            textAlignVertical="top"
-          />
-        </View>
+      <TouchableOpacity
+        style={[styles.healthCard, health === "at-risk" && styles.selectedRisk]}
+        onPress={() => setHealth("at-risk")}
+      >
+        <Text style={styles.healthIcon}>⚠️</Text>
+        <Text style={[styles.healthText, { color: "#b57f00" }]}>At Risk</Text>
+      </TouchableOpacity>
 
-        {/* Submit Button */}
-        <TouchableOpacity
-          style={[
-            styles.submitButton,
-            isLoading && styles.submitButtonDisabled,
-          ]}
-          onPress={handleSubmit}
-          disabled={isLoading}
-        >
-          <Ionicons name="checkmark-circle" size={24} color="#fff" />
-          <Text style={styles.submitButtonText}>
-            {isLoading ? "Saving..." : "Save Tree Data"}
-          </Text>
+      <TouchableOpacity
+        style={[
+          styles.healthCard,
+          health === "critical" && styles.selectedCritical,
+        ]}
+        onPress={() => setHealth("critical")}
+      >
+        <Text style={styles.healthIcon}>❗</Text>
+        <Text style={[styles.healthText, { color: "#8a0000" }]}>Critical</Text>
+      </TouchableOpacity>
+
+      {/* PHOTOS */}
+      <Text style={styles.label}>Photos</Text>
+
+      <View style={styles.photoRow}>
+        <TouchableOpacity style={styles.outlineBtn} onPress={takePhoto}>
+          <Text style={styles.outlineText}>📸 Take Photo</Text>
         </TouchableOpacity>
 
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </SafeAreaView>
+        <TouchableOpacity style={styles.outlineBtn} onPress={pickImage}>
+          <Text style={styles.outlineText}>🖼️ Choose from Gallery</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* NOTES */}
+      <Text style={styles.label}>Additional Notes</Text>
+      <TextInput
+        style={styles.notesInput}
+        placeholder="Add any observations or details…"
+        value={notes}
+        onChangeText={setNotes}
+        multiline
+      />
+
+      {/* SAVE BUTTON */}
+      <TouchableOpacity
+        style={styles.saveButton}
+        onPress={submit}
+        disabled={busy}
+      >
+        <Text style={styles.saveButtonText}>
+          {busy ? "Saving..." : "✔ Save Tree Data"}
+        </Text>
+      </TouchableOpacity>
+
+      <View style={{ height: 50 }} />
+    </ScrollView>
   );
 }
 
+/* ---------------------- STYLES ---------------------- */
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f5f5f5",
-  },
-  header: {
-    backgroundColor: "#fff",
-    padding: 24,
-    alignItems: "center",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#212121",
-    marginTop: 12,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: "#757575",
-    marginTop: 4,
-  },
-  section: {
-    backgroundColor: "#fff",
-    padding: 20,
-    marginTop: 12,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#212121",
-    marginBottom: 8,
-  },
+  container: { padding: 16 },
+
+  header: { alignItems: "center", marginBottom: 20 },
+  headerIcon: { fontSize: 36 },
+  headerTitle: { fontSize: 28, fontWeight: "800", marginTop: 4 },
+  headerSub: { fontSize: 14, color: "#777" },
+
+  label: { fontSize: 16, fontWeight: "700", marginTop: 20 },
   input: {
     borderWidth: 1,
-    borderColor: "#e0e0e0",
-    borderRadius: 8,
+    borderColor: "#ccc",
+    borderRadius: 12,
     padding: 12,
-    fontSize: 16,
-    backgroundColor: "#fafafa",
+    marginTop: 8,
   },
-  locationContainer: {
-    gap: 12,
-  },
-  coordinateInputs: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  coordinateInput: {
+
+  locationRow: { flexDirection: "row", gap: 10, marginTop: 10 },
+  locationInput: {
     flex: 1,
-  },
-  coordinateLabel: {
-    fontSize: 12,
-    color: "#757575",
-    marginBottom: 4,
-  },
-  locationButton: {
-    backgroundColor: "#2e7d32",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 14,
-    borderRadius: 8,
-    gap: 8,
-  },
-  locationButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  healthOptions: {
-    gap: 12,
-  },
-  healthOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    borderWidth: 2,
-    borderColor: "#e0e0e0",
-    borderRadius: 8,
-    gap: 12,
-  },
-  healthOptionText: {
-    fontSize: 16,
-    color: "#212121",
-  },
-  photoButtons: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  photoButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 14,
-    borderWidth: 2,
-    borderColor: "#2e7d32",
-    borderRadius: 8,
-    gap: 8,
-  },
-  photoButtonText: {
-    color: "#2e7d32",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  photoGallery: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: 12,
-  },
-  photoContainer: {
-    position: "relative",
-    width: 100,
-    height: 100,
-  },
-  photo: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 8,
-  },
-  removePhotoButton: {
-    position: "absolute",
-    top: -8,
-    right: -8,
-    backgroundColor: "#fff",
-    borderRadius: 12,
-  },
-  notesInput: {
-    minHeight: 100,
-    paddingTop: 12,
-  },
-  submitButton: {
-    backgroundColor: "#2e7d32",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    margin: 20,
-    marginTop: 12,
-    borderRadius: 12,
-    gap: 8,
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  submitButtonDisabled: {
-    backgroundColor: "#9e9e9e",
-  },
-  submitButtonText: {
-    color: "#fff",
-    fontSize: 18,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    padding: 12,
+    borderRadius: 10,
+    textAlign: "center",
     fontWeight: "bold",
   },
+
+  bigButton: {
+    backgroundColor: "#1b6e21",
+    padding: 16,
+    alignItems: "center",
+    borderRadius: 12,
+    marginTop: 10,
+  },
+  bigButtonText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+
+  healthCard: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    padding: 16,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+  },
+  healthIcon: { fontSize: 22, marginRight: 12 },
+  healthText: { fontSize: 18, fontWeight: "700" },
+
+  selectedHealthy: { backgroundColor: "#e8f8ee", borderColor: "#1b6e21" },
+  selectedRisk: { backgroundColor: "#fff5d6", borderColor: "#d8a300" },
+  selectedCritical: { backgroundColor: "#ffe5e5", borderColor: "#a80000" },
+
+  photoRow: { flexDirection: "row", gap: 12, marginTop: 10 },
+
+  outlineBtn: {
+    flex: 1,
+    borderWidth: 2,
+    borderColor: "#1b6e21",
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  outlineText: { color: "#1b6e21", fontWeight: "700" },
+
+  notesInput: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 10,
+    height: 120,
+  },
+
+  saveButton: {
+    backgroundColor: "#1b6e21",
+    padding: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    marginTop: 20,
+  },
+  saveButtonText: { color: "#fff", fontSize: 20, fontWeight: "800" },
 });
