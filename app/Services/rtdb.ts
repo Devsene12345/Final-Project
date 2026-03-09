@@ -18,6 +18,7 @@ import { rtdb } from "../FirebaseConfig";
 export type RiskLevel = "Low" | "Medium" | "High";
 export type HealthStatus = "healthy" | "at-risk" | "critical";
 export type VerificationStatus = "pending" | "verified" | "rejected";
+export type UserRole = "user" | "admin";
 
 export type MarkerRecord = {
   id: number;
@@ -65,13 +66,12 @@ export type AlertRecord = {
   createdAt?: unknown;
 };
 
-export type UserRole = "user" | "admin";
-
 export type UserProfile = {
   uid: string;
   name: string;
   email: string | null;
   role: UserRole;
+  disabled?: boolean;
   createdAt?: unknown;
   lastLoginAt?: unknown;
 };
@@ -100,18 +100,77 @@ export async function upsertUserProfile(profile: UserProfile) {
   const userRef = ref(rtdb, `users/${profile.uid}`);
   const existing = await get(userRef);
 
-  const payload: UserProfile = {
-    uid: profile.uid,
-    name: profile.name ?? "",
-    email: profile.email ?? null,
-    role: profile.role ?? "user",
-    createdAt: existing.exists()
-      ? (existing.val()?.createdAt ?? serverTimestamp())
-      : serverTimestamp(),
-    lastLoginAt: serverTimestamp(),
-  };
+  if (!existing.exists()) {
+    await set(userRef, {
+      uid: profile.uid,
+      name: profile.name ?? "",
+      email: profile.email ?? null,
+      role: profile.role ?? "user",
+      disabled: profile.disabled ?? false,
+      createdAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
+    });
+    return;
+  }
 
-  await set(userRef, payload);
+  await update(userRef, {
+    name: profile.name ?? existing.val()?.name ?? "",
+    email: profile.email ?? existing.val()?.email ?? null,
+    role: profile.role ?? existing.val()?.role ?? "user",
+    disabled: profile.disabled ?? existing.val()?.disabled ?? false,
+    lastLoginAt: serverTimestamp(),
+  });
+}
+
+export function subscribeUsers(
+  onData: (users: UserProfile[]) => void,
+  onError?: (error: unknown) => void,
+): Unsubscribe {
+  const usersRef = ref(rtdb, "users");
+  return onValue(
+    usersRef,
+    (snap) => {
+      const obj = snapshotToObject<UserProfile>(snap);
+      const list = Object.values(obj).sort((a, b) =>
+        (a.name ?? "").localeCompare(b.name ?? ""),
+      );
+      onData(list);
+    },
+    (error) => onError?.(error),
+  );
+}
+
+export async function setUserRole(uid: string, role: UserRole) {
+  await update(ref(rtdb, `users/${uid}`), { role });
+}
+
+export async function setUserDisabled(uid: string, disabled: boolean) {
+  await update(ref(rtdb, `users/${uid}`), { disabled });
+}
+
+export async function removeUserFromSystem(uid: string) {
+  await remove(ref(rtdb, `users/${uid}`));
+
+  const treesSnap = await get(ref(rtdb, "trees"));
+  if (treesSnap.exists()) {
+    const trees = treesSnap.val() as Record<string, TreeRecord>;
+    for (const [treeId, tree] of Object.entries(trees)) {
+      if (tree.createdBy === uid) {
+        await remove(ref(rtdb, `trees/${treeId}`));
+      }
+    }
+  }
+
+  const alertsSnap = await get(ref(rtdb, "alerts"));
+  if (alertsSnap.exists()) {
+    const alerts = alertsSnap.val() as Record<string, AlertRecord>;
+    for (const [alertId, alert] of Object.entries(alerts)) {
+      const treeSnap = await get(ref(rtdb, `trees/${alert.treeId}`));
+      if (!treeSnap.exists()) {
+        await remove(ref(rtdb, `alerts/${alertId}`));
+      }
+    }
+  }
 }
 
 /* -------------------- Markers -------------------- */
@@ -270,6 +329,32 @@ export async function rejectTree(treeId: string, adminUid: string) {
     verificationStatus: "rejected",
     verifiedBy: adminUid,
     verifiedAt: serverTimestamp(),
+  });
+}
+
+export async function removeTreeImageByIndex(
+  treeId: string,
+  imageIndex: number,
+) {
+  const treeRef = ref(rtdb, `trees/${treeId}`);
+  const snap = await get(treeRef);
+
+  if (!snap.exists()) {
+    throw new Error("Tree not found.");
+  }
+
+  const tree = snap.val() as TreeRecord;
+  const current = Array.isArray(tree.photoUrls) ? tree.photoUrls : [];
+
+  if (imageIndex < 0 || imageIndex >= current.length) {
+    throw new Error("Invalid image index.");
+  }
+
+  const next = current.filter((_, index) => index !== imageIndex);
+
+  await update(treeRef, {
+    photoUrls: next,
+    updatedAt: serverTimestamp(),
   });
 }
 

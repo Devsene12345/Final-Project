@@ -21,34 +21,37 @@ export default function TabsLayout() {
         options={{
           title: "Dashboard",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="speedometer-outline" color={color} size={size} />
+            <Ionicons name="speedometer-outline" size={size} color={color} />
           ),
         }}
       />
+
       <Tabs.Screen
         name="map"
         options={{
           title: "Map",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="map-outline" color={color} size={size} />
+            <Ionicons name="map-outline" size={size} color={color} />
           ),
         }}
       />
+
       <Tabs.Screen
         name="analytics"
         options={{
           title: "Analytics",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart-outline" color={color} size={size} />
+            <Ionicons name="bar-chart-outline" size={size} color={color} />
           ),
         }}
       />
+
       <Tabs.Screen
         name="alerts"
         options={{
           title: "Alerts",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="warning-outline" color={color} size={size} />
+            <Ionicons name="warning-outline" size={size} color={color} />
           ),
         }}
       />

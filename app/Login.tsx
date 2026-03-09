@@ -12,12 +12,18 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "./FirebaseConfig";
 
 function prettyError(message: string) {
-  if (message.includes("invalid-credential"))
+  if (message.includes("invalid-credential")) {
     return "Invalid email or password.";
-  if (message.includes("user-not-found"))
+  }
+  if (message.includes("user-not-found")) {
     return "No user found for this email.";
-  if (message.includes("wrong-password")) return "Incorrect password.";
-  if (message.includes("invalid-email")) return "Invalid email address.";
+  }
+  if (message.includes("wrong-password")) {
+    return "Incorrect password.";
+  }
+  if (message.includes("invalid-email")) {
+    return "Invalid email address.";
+  }
   return message;
 }
 

@@ -4,15 +4,17 @@ import MapView, { Callout, Marker } from "react-native-maps";
 import { treeImages, treeMarkers } from "../assets/markers";
 import {
   MarkerRecord,
+  TreeRecord,
   seedMarkersIfEmpty,
+  subscribeAllTrees,
   subscribeMarkers,
 } from "./Services/rtdb";
 
-type MarkerWithImage = MarkerRecord & {
+type StaticMarkerWithImage = MarkerRecord & {
   image?: any;
 };
 
-function attachImage(marker: MarkerRecord): MarkerWithImage {
+function attachImage(marker: MarkerRecord): StaticMarkerWithImage {
   return {
     ...marker,
     image: treeImages[marker.id] ?? treeImages[1],
@@ -26,7 +28,7 @@ function pinColor(risk: "Low" | "Medium" | "High") {
 }
 
 export default function MapViewScreen() {
-  const [markers, setMarkers] = useState<MarkerWithImage[]>(
+  const [markers, setMarkers] = useState<StaticMarkerWithImage[]>(
     treeMarkers.map((marker) => ({
       id: marker.id,
       description: marker.description,
@@ -38,6 +40,8 @@ export default function MapViewScreen() {
       imageUrl: null,
     })),
   );
+
+  const [userTrees, setUserTrees] = useState<TreeRecord[]>([]);
 
   useEffect(() => {
     const seed = async () => {
@@ -56,11 +60,18 @@ export default function MapViewScreen() {
 
     seed().catch(() => undefined);
 
-    const unsubscribe = subscribeMarkers((rows) => {
+    const unsubscribeMarkers = subscribeMarkers((rows) => {
       setMarkers(rows.map(attachImage));
     });
 
-    return unsubscribe;
+    const unsubscribeTrees = subscribeAllTrees((rows) => {
+      setUserTrees(rows);
+    });
+
+    return () => {
+      unsubscribeMarkers();
+      unsubscribeTrees();
+    };
   }, []);
 
   const initialRegion = useMemo(
@@ -78,14 +89,12 @@ export default function MapViewScreen() {
       <MapView style={styles.map} initialRegion={initialRegion}>
         {markers.map((marker) => (
           <Marker
-            key={String(marker.id)}
+            key={`static-${marker.id}`}
             coordinate={{
               latitude: marker.latitude,
               longitude: marker.longitude,
             }}
             pinColor={pinColor(marker.risklevel)}
-            title={marker.description}
-            description={`Height: ${marker.height} m | Risk: ${marker.risklevel}`}
           >
             <Callout tooltip>
               <View style={styles.callout}>
@@ -105,6 +114,37 @@ export default function MapViewScreen() {
             </Callout>
           </Marker>
         ))}
+
+        {userTrees.map((tree) => (
+          <Marker
+            key={`tree-${tree.id}`}
+            coordinate={{
+              latitude: tree.latitude,
+              longitude: tree.longitude,
+            }}
+            pinColor={pinColor(tree.riskLevel)}
+          >
+            <Callout tooltip>
+              <View style={styles.callout}>
+                {tree.photoUrls?.[0] ? (
+                  <Image
+                    source={{ uri: tree.photoUrls[0] }}
+                    style={styles.image}
+                  />
+                ) : null}
+                <Text style={styles.calloutTitle}>{tree.species}</Text>
+                <Text style={styles.calloutText}>Health: {tree.health}</Text>
+                <Text style={styles.calloutText}>Risk: {tree.riskLevel}</Text>
+                <Text style={styles.calloutText}>
+                  Added by: {tree.createdByName ?? "User"}
+                </Text>
+                {!!tree.notes && (
+                  <Text style={styles.calloutText}>Notes: {tree.notes}</Text>
+                )}
+              </View>
+            </Callout>
+          </Marker>
+        ))}
       </MapView>
 
       <View style={styles.legend}>
@@ -120,7 +160,6 @@ export default function MapViewScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   map: { flex: 1 },
-
   legend: {
     position: "absolute",
     top: 15,
@@ -138,9 +177,8 @@ const styles = StyleSheet.create({
     color: "#fff",
     marginBottom: 4,
   },
-
   callout: {
-    width: 230,
+    width: 240,
     backgroundColor: "#fff",
     padding: 10,
     borderRadius: 12,
@@ -150,13 +188,16 @@ const styles = StyleSheet.create({
     height: 110,
     borderRadius: 10,
     marginBottom: 8,
+    backgroundColor: "#ddd",
   },
   calloutTitle: {
     fontWeight: "800",
     marginBottom: 4,
+    fontSize: 15,
   },
   calloutText: {
     fontWeight: "600",
     color: "#555",
+    marginBottom: 2,
   },
 });

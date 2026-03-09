@@ -1,4 +1,3 @@
-// app/context/AuthContext.tsx
 import React, {
   createContext,
   useContext,
@@ -6,7 +5,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { auth } from "../FirebaseConfig";
 import {
   getUserProfile,
@@ -31,17 +30,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadProfile = async (user: User) => {
-    const profile = await getUserProfile(user.uid);
+    const existing = await getUserProfile(user.uid);
 
-    const next: UserProfile = profile ?? {
+    const baseProfile: UserProfile = existing ?? {
       uid: user.uid,
       email: user.email ?? null,
       name: user.displayName ?? "",
       role: "user",
+      disabled: false,
     };
 
-    await upsertUserProfile(next);
-    setAppUser(next);
+    await upsertUserProfile(baseProfile);
+    const fresh = await getUserProfile(user.uid);
+
+    if (fresh?.disabled) {
+      await signOut(auth);
+      setAppUser(null);
+      return;
+    }
+
+    setAppUser(fresh ?? baseProfile);
   };
 
   useEffect(() => {
@@ -57,6 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       try {
         await loadProfile(u);
+      } catch (error) {
+        console.error("Failed to load profile:", error);
+        setAppUser(null);
       } finally {
         setLoading(false);
       }
@@ -76,7 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = async () => {
-    await auth.signOut();
+    await signOut(auth);
   };
 
   const value = useMemo<AuthContextType>(
