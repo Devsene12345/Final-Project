@@ -1,4 +1,4 @@
-// app/(tabs)/AdminPanel.tsx
+// app/AdminPanel.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -8,67 +8,47 @@ import {
   StyleSheet,
   Alert,
 } from "react-native";
-import {
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  updateDoc,
-  where,
-} from "firebase/firestore";
-import { db } from "./FirebaseConfig";
 import { useAuth } from "./context/AuthContext";
-
-type TreeDoc = {
-  id: string;
-  species: string;
-  riskLevel?: "Low" | "Medium" | "High";
-  health?: "healthy" | "at-risk";
-  latitude?: number;
-  longitude?: number;
-  verified: boolean;
-  createdBy?: string;
-};
+import {
+  TreeRecord,
+  rejectTree,
+  subscribePendingTrees,
+  verifyTree,
+} from "./Services/rtdb";
 
 export default function AdminPanel() {
-  const { isAdmin } = useAuth();
-  const [pending, setPending] = useState<TreeDoc[]>([]);
+  const { isAdmin, appUser } = useAuth();
+  const [pending, setPending] = useState<TreeRecord[]>([]);
 
   useEffect(() => {
-    const qPending = query(
-      collection(db, "trees"),
-      where("verified", "==", false),
-      orderBy("createdAt", "desc"),
+    const unsub = subscribePendingTrees(
+      (trees) => setPending(trees),
+      (e) => Alert.alert("Error", String((e as any)?.message ?? e)),
     );
-
-    const unsub = onSnapshot(qPending, (snap) => {
-      setPending(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-    });
-
     return () => unsub();
   }, []);
 
-  const verifyTree = async (id: string) => {
+  const onVerify = async (id: string) => {
+    if (!appUser?.uid) return;
     try {
-      await updateDoc(doc(db, "trees", id), { verified: true });
+      await verifyTree(id, appUser.uid);
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Failed to verify");
     }
   };
 
-  const rejectTree = async (id: string) => {
-    Alert.alert("Reject", "Delete this tree submission?", [
+  const onReject = async (id: string) => {
+    if (!appUser?.uid) return;
+    Alert.alert("Reject", "Mark this submission as rejected?", [
       { text: "Cancel", style: "cancel" },
       {
-        text: "Delete",
+        text: "Reject",
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteDoc(doc(db, "trees", id));
+            await rejectTree(id, appUser.uid);
           } catch (e: any) {
-            Alert.alert("Error", e?.message ?? "Failed to delete");
+            Alert.alert("Error", e?.message ?? "Failed to reject");
           }
         },
       },
@@ -91,31 +71,27 @@ export default function AdminPanel() {
         data={pending}
         keyExtractor={(item) => item.id}
         ListEmptyComponent={
-          <Text style={{ color: "#666", marginTop: 12 }}>
-            No pending trees.
-          </Text>
+          <Text style={{ color: "#666" }}>No pending trees.</Text>
         }
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <Text style={styles.species}>{item.species}</Text>
+            <Text style={styles.name}>{item.species}</Text>
+            <Text style={styles.meta}>Risk: {item.riskLevel}</Text>
+            <Text style={styles.meta}>Health: {item.health}</Text>
             <Text style={styles.meta}>
-              Risk: {item.riskLevel ?? "N/A"} | Health: {item.health ?? "N/A"}
-            </Text>
-            <Text style={styles.meta}>
-              Location: {item.latitude?.toFixed(5)},{" "}
-              {item.longitude?.toFixed(5)}
+              Location: {item.latitude.toFixed(5)}, {item.longitude.toFixed(5)}
             </Text>
 
-            <View style={styles.row}>
+            <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
               <TouchableOpacity
-                style={styles.btn}
-                onPress={() => verifyTree(item.id)}
+                style={styles.verifyBtn}
+                onPress={() => onVerify(item.id)}
               >
                 <Text style={styles.btnText}>Verify</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.btn, styles.danger]}
-                onPress={() => rejectTree(item.id)}
+                style={styles.rejectBtn}
+                onPress={() => onReject(item.id)}
               >
                 <Text style={styles.btnText}>Reject</Text>
               </TouchableOpacity>
@@ -128,26 +104,31 @@ export default function AdminPanel() {
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 20, fontWeight: "900", marginBottom: 10 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  title: { fontSize: 20, fontWeight: "800", marginBottom: 10 },
   card: {
     borderWidth: 1,
     borderColor: "#ddd",
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
-    gap: 6,
+    gap: 4,
   },
-  species: { fontWeight: "900", fontSize: 16 },
-  meta: { color: "#666" },
-  row: { flexDirection: "row", gap: 10, marginTop: 6 },
-  btn: {
-    backgroundColor: "#111",
-    padding: 10,
-    borderRadius: 10,
+  name: { fontWeight: "900", fontSize: 16 },
+  meta: { color: "#555", fontWeight: "600" },
+  verifyBtn: {
     flex: 1,
+    backgroundColor: "#1b6e21",
+    padding: 12,
+    borderRadius: 10,
     alignItems: "center",
   },
-  danger: { backgroundColor: "#b00020" },
+  rejectBtn: {
+    flex: 1,
+    backgroundColor: "#111",
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+  },
   btnText: { color: "#fff", fontWeight: "800" },
-  center: { flex: 1, justifyContent: "center", alignItems: "center" },
 });

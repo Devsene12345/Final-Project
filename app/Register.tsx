@@ -1,56 +1,70 @@
-// app/Register.tsx
 import React, { useState } from "react";
 import {
-  View,
+  Alert,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
-import { auth, db } from "./FirebaseConfig";
+import { auth } from "./FirebaseConfig";
+import { upsertUserProfile } from "./Services/rtdb";
 
-export default function Register() {
+function prettyError(message: string) {
+  if (message.includes("email-already-in-use")) {
+    return "This email is already registered.";
+  }
+  if (message.includes("weak-password")) {
+    return "Password should be at least 6 characters.";
+  }
+  if (message.includes("invalid-email")) {
+    return "Please enter a valid email address.";
+  }
+  return message;
+}
+
+export default function RegisterScreen() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const onRegister = async () => {
-    if (!name || !email || !password) {
-      Alert.alert("Missing", "Please fill all fields.");
-      return;
-    }
-    if (password.length < 6) {
-      Alert.alert("Weak password", "Password must be at least 6 characters.");
+  const handleRegister = async () => {
+    if (!name.trim() || !email.trim() || !password.trim()) {
+      Alert.alert("Missing details", "Please fill all fields.");
       return;
     }
 
     try {
       setBusy(true);
-      const cred = await createUserWithEmailAndPassword(
+
+      const userCredential = await createUserWithEmailAndPassword(
         auth,
         email.trim(),
         password,
       );
-      await updateProfile(cred.user, { displayName: name });
 
-      await setDoc(doc(db, "users", cred.user.uid), {
-        uid: cred.user.uid,
-        name,
-        email: cred.user.email,
-        role: "user",
-        createdAt: serverTimestamp(),
-        lastLoginAt: serverTimestamp(),
+      await updateProfile(userCredential.user, {
+        displayName: name.trim(),
       });
 
-      router.replace("../(tabs)/Dashboard");
-    } catch (e: any) {
-      Alert.alert("Register failed", e?.message ?? "Unknown error");
+      await upsertUserProfile({
+        uid: userCredential.user.uid,
+        name: name.trim(),
+        email: userCredential.user.email,
+        role: "user",
+      });
+
+      Alert.alert("Success", "Successfully registered.");
+      router.replace("/Login");
+    } catch (error: any) {
+      Alert.alert(
+        "Register failed",
+        prettyError(error?.message ?? "Unknown error"),
+      );
     } finally {
       setBusy(false);
     }
@@ -84,34 +98,58 @@ export default function Register() {
         onChangeText={setPassword}
       />
 
-      <TouchableOpacity style={styles.btn} onPress={onRegister} disabled={busy}>
-        <Text style={styles.btnText}>
-          {busy ? "Creating..." : "Create Account"}
+      <TouchableOpacity
+        style={[styles.button, busy && { opacity: 0.7 }]}
+        onPress={handleRegister}
+        disabled={busy}
+      >
+        <Text style={styles.buttonText}>
+          {busy ? "Registering..." : "Register"}
         </Text>
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => router.back()}>
-        <Text style={styles.link}>Back to Login</Text>
+      <TouchableOpacity onPress={() => router.push("/Login")}>
+        <Text style={styles.link}>Already have an account? Login</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 20, gap: 12 },
-  title: {
-    fontSize: 26,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 10,
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    padding: 24,
+    gap: 14,
+    backgroundColor: "#fff",
   },
-  input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 10, padding: 12 },
-  btn: {
-    backgroundColor: "#18bd16",
+  title: {
+    fontSize: 30,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#d8d8d8",
+    borderRadius: 12,
     padding: 14,
-    borderRadius: 10,
+  },
+  button: {
+    backgroundColor: "#1b6e21",
+    padding: 15,
+    borderRadius: 12,
     alignItems: "center",
   },
-  btnText: { color: "#fff", fontWeight: "700" },
-  link: { textAlign: "center", marginTop: 10, textDecorationLine: "underline" },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16,
+  },
+  link: {
+    textAlign: "center",
+    color: "#1b6e21",
+    fontWeight: "700",
+    marginTop: 6,
+  },
 });

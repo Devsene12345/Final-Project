@@ -1,78 +1,87 @@
-// app/Analytics.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
-import { db } from "./FirebaseConfig";
-
-type TreeDoc = {
-  id: string;
-  riskLevel?: "Low" | "Medium" | "High";
-  health?: "healthy" | "at-risk";
-  verified: boolean;
-};
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { subscribeVerifiedTrees, TreeRecord } from "./Services/rtdb";
 
 export default function AnalyticsScreen() {
-  const [trees, setTrees] = useState<TreeDoc[]>([]);
+  const [trees, setTrees] = useState<TreeRecord[]>([]);
 
   useEffect(() => {
-    const qTrees = query(
-      collection(db, "trees"),
-      where("verified", "==", true),
-    );
-    const unsub = onSnapshot(qTrees, (snap) => {
-      setTrees(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-    });
-    return () => unsub();
+    const unsubscribe = subscribeVerifiedTrees(setTrees);
+    return unsubscribe;
   }, []);
 
   const stats = useMemo(() => {
-    const total = trees.length;
-    const risk = { Low: 0, Medium: 0, High: 0 } as Record<string, number>;
-    const health = { healthy: 0, "at-risk": 0 } as Record<string, number>;
+    const result = {
+      total: trees.length,
+      low: 0,
+      medium: 0,
+      high: 0,
+      healthy: 0,
+      atRisk: 0,
+      critical: 0,
+    };
 
-    for (const t of trees) {
-      if (t.riskLevel) risk[t.riskLevel] = (risk[t.riskLevel] ?? 0) + 1;
-      if (t.health) health[t.health] = (health[t.health] ?? 0) + 1;
+    for (const tree of trees) {
+      if (tree.riskLevel === "Low") result.low += 1;
+      if (tree.riskLevel === "Medium") result.medium += 1;
+      if (tree.riskLevel === "High") result.high += 1;
+      if (tree.health === "healthy") result.healthy += 1;
+      if (tree.health === "at-risk") result.atRisk += 1;
+      if (tree.health === "critical") result.critical += 1;
     }
 
-    return { total, risk, health };
+    return result;
   }, [trees]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Analytics (Verified Trees)</Text>
+      <Text style={styles.title}>Analytics</Text>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Total Verified Trees</Text>
-        <Text style={styles.big}>{stats.total}</Text>
+        <Text style={styles.label}>Verified Trees</Text>
+        <Text style={styles.value}>{stats.total}</Text>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Risk Levels</Text>
-        <Text>Low: {stats.risk.Low}</Text>
-        <Text>Medium: {stats.risk.Medium}</Text>
-        <Text>High: {stats.risk.High}</Text>
+        <Text style={styles.label}>Risk Levels</Text>
+        <Text>Low: {stats.low}</Text>
+        <Text>Medium: {stats.medium}</Text>
+        <Text>High: {stats.high}</Text>
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>Health</Text>
-        <Text>Healthy: {stats.health.healthy}</Text>
-        <Text>At-risk: {stats.health["at-risk"]}</Text>
+        <Text style={styles.label}>Health Status</Text>
+        <Text>Healthy: {stats.healthy}</Text>
+        <Text>At Risk: {stats.atRisk}</Text>
+        <Text>Critical: {stats.critical}</Text>
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 16, gap: 12 },
-  title: { fontSize: 20, fontWeight: "800" },
+  container: {
+    padding: 20,
+    gap: 14,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+  },
   card: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 12,
-    padding: 14,
+    borderColor: "#e4e4e4",
     gap: 6,
   },
-  cardTitle: { fontSize: 14, fontWeight: "700" },
-  big: { fontSize: 34, fontWeight: "900" },
+  label: {
+    fontWeight: "800",
+    fontSize: 16,
+  },
+  value: {
+    fontWeight: "900",
+    fontSize: 34,
+  },
 });

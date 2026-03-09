@@ -1,341 +1,418 @@
-// app/modal.tsx
 import React, { useState } from "react";
 import {
-  View,
+  Alert,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ScrollView,
+  View,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { getDownloadURL, ref, uploadBytes, getStorage } from "firebase/storage";
-import { db } from "./FirebaseConfig";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  getDownloadURL,
+  ref as storageRef,
+  uploadBytes,
+} from "firebase/storage";
+import { storage } from "./FirebaseConfig";
 import { useAuth } from "./context/AuthContext";
+import {
+  createAlert,
+  createTree,
+  HealthStatus,
+  RiskLevel,
+} from "./Services/rtdb";
 
-const storage = getStorage();
+const healthOptions: { label: string; value: HealthStatus }[] = [
+  { label: "Healthy", value: "healthy" },
+  { label: "At Risk", value: "at-risk" },
+  { label: "Critical", value: "critical" },
+];
+
+function getRiskLevelFromHealth(health: HealthStatus): RiskLevel {
+  if (health === "critical") return "High";
+  if (health === "at-risk") return "Medium";
+  return "Low";
+}
+
+function buildAlert(health: HealthStatus) {
+  if (health === "critical") {
+    return {
+      level: "High" as RiskLevel,
+      type: "critical" as const,
+      message: "Critical tree detected. Immediate inspection is required.",
+    };
+  }
+
+  if (health === "at-risk") {
+    return {
+      level: "Medium" as RiskLevel,
+      type: "warning" as const,
+      message: "At-risk tree detected. Maintenance is recommended.",
+    };
+  }
+
+  return null;
+}
 
 export default function AddTreeModal() {
   const router = useRouter();
-  const { appUser } = useAuth();
+  const { firebaseUser, appUser } = useAuth();
 
   const [species, setSpecies] = useState("");
+  const [latitude, setLatitude] = useState("");
+  const [longitude, setLongitude] = useState("");
   const [notes, setNotes] = useState("");
-
-  const [health, setHealth] = useState("healthy");
-  const [riskLevel, setRiskLevel] = useState("Low");
-
-  const [lat, setLat] = useState(0.0);
-  const [lng, setLng] = useState(0.0);
-
+  const [health, setHealth] = useState<HealthStatus>("healthy");
   const [images, setImages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
 
-  // -------- PICK IMAGE --------
-  const pickImage = async () => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert("Permission denied", "Please enable gallery access.");
-      return;
-    }
-
-    const res = await ImagePicker.launchImageLibraryAsync({
-      allowsMultipleSelection: true,
+  const chooseFromGallery = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
       quality: 0.7,
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
     });
 
-    if (!res.canceled) {
-      setImages(res.assets.map((a) => a.uri));
-    }
+    if (result.canceled) return;
+
+    const uris = result.assets.map((asset) => asset.uri);
+    setImages((prev) => [...prev, ...uris].slice(0, 5));
   };
 
-  // -------- TAKE PHOTO --------
   const takePhoto = async () => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert("Permission denied", "Please enable camera access.");
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission needed", "Camera permission is required.");
       return;
     }
 
     const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
       quality: 0.7,
     });
 
-    if (!result.canceled) {
-      setImages([result.assets[0].uri]);
-    }
+    if (result.canceled) return;
+    setImages((prev) => [...prev, result.assets[0].uri].slice(0, 5));
   };
 
-  // -------- GET LOCATION --------
-  const getCurrentLocation = async () => {
-    const perm = await Location.requestForegroundPermissionsAsync();
-    if (perm.status !== "granted") {
-      Alert.alert("Permission", "Location permission is required.");
+  const useCurrentLocation = async () => {
+    const permission = await Location.requestForegroundPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission needed", "Location permission is required.");
       return;
     }
 
-    const loc = await Location.getCurrentPositionAsync({});
-    setLat(loc.coords.latitude);
-    setLng(loc.coords.longitude);
+    const location = await Location.getCurrentPositionAsync({});
+    setLatitude(String(location.coords.latitude));
+    setLongitude(String(location.coords.longitude));
   };
 
-  // -------- UPLOAD PHOTOS --------
-  const uploadPhotos = async (treeId: string) => {
-    const urls: string[] = [];
-    for (let i = 0; i < images.length; i++) {
-      const response = await fetch(images[i]);
-      const blob = await response.blob();
+  const uploadImageAsync = async (uri: string, uid: string, index: number) => {
+    const response = await fetch(uri);
+    const blob = await response.blob();
 
-      const imageRef = ref(
-        storage,
-        `trees/${appUser?.uid}/${treeId}/img${i}.jpg`,
-      );
-      await uploadBytes(imageRef, blob);
-      const url = await getDownloadURL(imageRef);
-      urls.push(url);
-    }
-    return urls;
+    const path = `tree-photos/${uid}/${Date.now()}-${index}.jpg`;
+    const fileRef = storageRef(storage, path);
+
+    await uploadBytes(fileRef, blob);
+    return await getDownloadURL(fileRef);
   };
 
-  // -------- SUBMIT TREE --------
   const submit = async () => {
-    if (!species.trim()) {
-      Alert.alert("Missing", "Tree species is required.");
+    if (!firebaseUser?.uid) {
+      Alert.alert("Login required", "Please login first.");
+      return;
+    }
+
+    if (!species.trim() || !latitude.trim() || !longitude.trim()) {
+      Alert.alert(
+        "Missing details",
+        "Please fill species, latitude and longitude.",
+      );
+      return;
+    }
+
+    const lat = Number(latitude);
+    const lng = Number(longitude);
+
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      Alert.alert(
+        "Invalid coordinates",
+        "Latitude and longitude must be valid numbers.",
+      );
       return;
     }
 
     try {
       setBusy(true);
 
-      const treeRef = await addDoc(collection(db, "trees"), {
-        species,
-        health,
-        riskLevel,
-        notes,
-        latitude: lat,
-        longitude: lng,
-        verified: false,
-        createdBy: appUser?.uid,
-        createdAt: serverTimestamp(),
-        photoUrls: [],
-      });
-
-      const photoUrls = await uploadPhotos(treeRef.id);
-
-      if (photoUrls.length > 0) {
-        const { updateDoc, doc } = await import("firebase/firestore");
-        await updateDoc(doc(db, "trees", treeRef.id), { photoUrls });
+      const photoUrls: string[] = [];
+      for (let i = 0; i < images.length; i += 1) {
+        const url = await uploadImageAsync(images[i], firebaseUser.uid, i);
+        photoUrls.push(url);
       }
 
-      Alert.alert("Success", "Tree added successfully!");
+      const treeId = await createTree({
+        species: species.trim(),
+        notes: notes.trim(),
+        health,
+        riskLevel: getRiskLevelFromHealth(health),
+        latitude: lat,
+        longitude: lng,
+        photoUrls,
+        verified: false,
+        verificationStatus: "pending",
+        verifiedAt: null,
+        verifiedBy: null,
+        createdBy: firebaseUser.uid,
+        createdByName:
+          appUser?.name ?? firebaseUser.displayName ?? "Unknown User",
+      });
+
+      const alertData = buildAlert(health);
+      if (alertData) {
+        await createAlert({
+          treeId,
+          level: alertData.level,
+          type: alertData.type,
+          message: alertData.message,
+          latitude: lat,
+          longitude: lng,
+        });
+      }
+
+      Alert.alert("Success", "Tree data saved successfully.");
       router.back();
-    } catch (e) {
-      const errorMessage =
-        e instanceof Error ? e.message : "An unknown error occurred";
-      Alert.alert("Error", errorMessage);
+    } catch (error: any) {
+      Alert.alert("Error", error?.message ?? "Failed to save tree data.");
     } finally {
       setBusy(false);
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      {/* HEADER */}
+    <ScrollView style={styles.page} contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.headerIcon}>🍃</Text>
-        <Text style={styles.headerTitle}>Add New Tree</Text>
-        <Text style={styles.headerSub}>
-          Record tree information and location
+        <View style={styles.leafCircle}>
+          <Ionicons name="leaf-outline" size={34} color="#1b6e21" />
+        </View>
+        <Text style={styles.headerTitle}>Add Tree Data</Text>
+        <Text style={styles.headerSub}>Submit a new tree for verification</Text>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.label}>Species / Tree Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Enter tree species"
+          value={species}
+          onChangeText={setSpecies}
+        />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.label}>Location</Text>
+
+        <View style={styles.locRow}>
+          <TextInput
+            style={[styles.input, styles.half]}
+            placeholder="Latitude"
+            keyboardType="numeric"
+            value={latitude}
+            onChangeText={setLatitude}
+          />
+          <TextInput
+            style={[styles.input, styles.half]}
+            placeholder="Longitude"
+            keyboardType="numeric"
+            value={longitude}
+            onChangeText={setLongitude}
+          />
+        </View>
+
+        <TouchableOpacity style={styles.greenBtn} onPress={useCurrentLocation}>
+          <Ionicons name="locate-outline" size={20} color="#fff" />
+          <Text style={styles.greenBtnText}>Use Current Location</Text>
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.label}>Health Status</Text>
+        {healthOptions.map((item) => (
+          <TouchableOpacity
+            key={item.value}
+            style={[
+              styles.statusCard,
+              health === item.value && styles.statusCardSelected,
+            ]}
+            onPress={() => setHealth(item.value)}
+          >
+            <Text style={styles.statusText}>{item.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.label}>Photos</Text>
+        <View style={styles.photoRow}>
+          <TouchableOpacity style={styles.outlineBtn} onPress={takePhoto}>
+            <Text style={styles.outlineBtnText}>Take Photo</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.outlineBtn}
+            onPress={chooseFromGallery}
+          >
+            <Text style={styles.outlineBtnText}>Choose Gallery</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.meta}>
+          Selected: {images.length} photo{images.length === 1 ? "" : "s"}
         </Text>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ marginTop: 10 }}
+        >
+          {images.map((uri, index) => (
+            <Image
+              key={`${uri}-${index}`}
+              source={{ uri }}
+              style={styles.preview}
+            />
+          ))}
+        </ScrollView>
       </View>
 
-      {/* SPECIES */}
-      <Text style={styles.label}>Tree Species *</Text>
-      <TextInput
-        style={styles.input}
-        value={species}
-        onChangeText={setSpecies}
-        placeholder="e.g., Mango, Coconut, Jak"
-      />
-
-      {/* LOCATION */}
-      <Text style={styles.label}>Location *</Text>
-      <View style={styles.locationRow}>
+      <View style={styles.section}>
+        <Text style={styles.label}>Additional Notes</Text>
         <TextInput
-          style={styles.locationInput}
-          value={lat.toFixed(6)}
-          editable={false}
-        />
-        <TextInput
-          style={styles.locationInput}
-          value={lng.toFixed(6)}
-          editable={false}
+          style={[styles.input, styles.notes]}
+          placeholder="Add any observations or details..."
+          multiline
+          value={notes}
+          onChangeText={setNotes}
         />
       </View>
 
-      <TouchableOpacity style={styles.bigButton} onPress={getCurrentLocation}>
-        <Text style={styles.bigButtonText}>Use Current Location</Text>
-      </TouchableOpacity>
-
-      {/* HEALTH STATUS */}
-      <Text style={styles.label}>Health Status *</Text>
-
       <TouchableOpacity
-        style={[
-          styles.healthCard,
-          health === "healthy" && styles.selectedHealthy,
-        ]}
-        onPress={() => setHealth("healthy")}
-      >
-        <Text style={styles.healthIcon}>✔️</Text>
-        <Text style={[styles.healthText, { color: "#1b6e21" }]}>Healthy</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.healthCard, health === "at-risk" && styles.selectedRisk]}
-        onPress={() => setHealth("at-risk")}
-      >
-        <Text style={styles.healthIcon}>⚠️</Text>
-        <Text style={[styles.healthText, { color: "#b57f00" }]}>At Risk</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[
-          styles.healthCard,
-          health === "critical" && styles.selectedCritical,
-        ]}
-        onPress={() => setHealth("critical")}
-      >
-        <Text style={styles.healthIcon}>❗</Text>
-        <Text style={[styles.healthText, { color: "#8a0000" }]}>Critical</Text>
-      </TouchableOpacity>
-
-      {/* PHOTOS */}
-      <Text style={styles.label}>Photos</Text>
-
-      <View style={styles.photoRow}>
-        <TouchableOpacity style={styles.outlineBtn} onPress={takePhoto}>
-          <Text style={styles.outlineText}>📸 Take Photo</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.outlineBtn} onPress={pickImage}>
-          <Text style={styles.outlineText}>🖼️ Choose from Gallery</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* NOTES */}
-      <Text style={styles.label}>Additional Notes</Text>
-      <TextInput
-        style={styles.notesInput}
-        placeholder="Add any observations or details…"
-        value={notes}
-        onChangeText={setNotes}
-        multiline
-      />
-
-      {/* SAVE BUTTON */}
-      <TouchableOpacity
-        style={styles.saveButton}
+        style={[styles.saveBtn, busy && { opacity: 0.7 }]}
         onPress={submit}
         disabled={busy}
       >
-        <Text style={styles.saveButtonText}>
-          {busy ? "Saving..." : "✔ Save Tree Data"}
+        <Text style={styles.saveText}>
+          {busy ? "Saving..." : "Save Tree Data"}
         </Text>
       </TouchableOpacity>
 
-      <View style={{ height: 50 }} />
+      <TouchableOpacity style={styles.cancel} onPress={() => router.back()}>
+        <Text style={styles.cancelText}>Cancel</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
-/* ---------------------- STYLES ---------------------- */
-
 const styles = StyleSheet.create({
-  container: { padding: 16 },
+  page: { flex: 1, backgroundColor: "#f7f7f7" },
+  container: { padding: 20, paddingBottom: 40 },
+  header: { alignItems: "center", marginBottom: 24 },
+  leafCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#eaf6ed",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  headerTitle: { fontSize: 26, fontWeight: "800" },
+  headerSub: { color: "#666", marginTop: 4 },
 
-  header: { alignItems: "center", marginBottom: 20 },
-  headerIcon: { fontSize: 36 },
-  headerTitle: { fontSize: 28, fontWeight: "800", marginTop: 4 },
-  headerSub: { fontSize: 14, color: "#777" },
+  section: { marginBottom: 18 },
+  label: { fontSize: 18, fontWeight: "700", marginBottom: 10 },
 
-  label: { fontSize: 16, fontWeight: "700", marginTop: 20 },
   input: {
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: "#d7d7d7",
     borderRadius: 12,
-    padding: 12,
-    marginTop: 8,
+    padding: 14,
+    backgroundColor: "#fff",
   },
+  locRow: { flexDirection: "row", gap: 10, marginBottom: 10 },
+  half: { flex: 1 },
 
-  locationRow: { flexDirection: "row", gap: 10, marginTop: 10 },
-  locationInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 12,
-    borderRadius: 10,
-    textAlign: "center",
-    fontWeight: "bold",
-  },
-
-  bigButton: {
+  greenBtn: {
     backgroundColor: "#1b6e21",
-    padding: 16,
-    alignItems: "center",
     borderRadius: 12,
-    marginTop: 10,
-  },
-  bigButtonText: { color: "#fff", fontSize: 18, fontWeight: "700" },
-
-  healthCard: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 16,
-    borderRadius: 12,
+    padding: 14,
     flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
-    marginTop: 10,
+    gap: 8,
   },
-  healthIcon: { fontSize: 22, marginRight: 12 },
-  healthText: { fontSize: 18, fontWeight: "700" },
+  greenBtnText: { color: "#fff", fontWeight: "700" },
 
-  selectedHealthy: { backgroundColor: "#e8f8ee", borderColor: "#1b6e21" },
-  selectedRisk: { backgroundColor: "#fff5d6", borderColor: "#d8a300" },
-  selectedCritical: { backgroundColor: "#ffe5e5", borderColor: "#a80000" },
+  statusCard: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#d7d7d7",
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 10,
+  },
+  statusCardSelected: {
+    borderColor: "#1b6e21",
+    backgroundColor: "#edf7ef",
+  },
+  statusText: { fontSize: 18, fontWeight: "700" },
 
-  photoRow: { flexDirection: "row", gap: 12, marginTop: 10 },
-
+  photoRow: { flexDirection: "row", gap: 10 },
   outlineBtn: {
     flex: 1,
-    borderWidth: 2,
-    borderColor: "#1b6e21",
-    padding: 14,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  outlineText: { color: "#1b6e21", fontWeight: "700" },
-
-  notesInput: {
     borderWidth: 1,
-    borderColor: "#ccc",
+    borderColor: "#1b6e21",
     borderRadius: 12,
-    padding: 12,
-    marginTop: 10,
-    height: 120,
+    padding: 14,
+    alignItems: "center",
+    backgroundColor: "#fff",
+  },
+  outlineBtnText: { color: "#1b6e21", fontWeight: "700" },
+
+  meta: { marginTop: 8, color: "#555" },
+  preview: {
+    width: 90,
+    height: 90,
+    borderRadius: 10,
+    marginRight: 10,
+    backgroundColor: "#ddd",
   },
 
-  saveButton: {
+  notes: { minHeight: 110, textAlignVertical: "top" },
+
+  saveBtn: {
     backgroundColor: "#1b6e21",
+    borderRadius: 14,
     padding: 16,
-    borderRadius: 12,
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 12,
   },
-  saveButtonText: { color: "#fff", fontSize: 20, fontWeight: "800" },
+  saveText: { color: "#fff", fontSize: 17, fontWeight: "800" },
+
+  cancel: {
+    alignItems: "center",
+    marginTop: 14,
+    padding: 10,
+  },
+  cancelText: {
+    color: "#333",
+    fontSize: 16,
+    fontWeight: "700",
+  },
 });

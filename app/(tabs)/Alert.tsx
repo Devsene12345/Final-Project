@@ -1,90 +1,64 @@
-// app/(tabs)/Alert.tsx
 import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
+  Alert,
   FlatList,
-  TouchableOpacity,
   StyleSheet,
-  Alert as RNAlert,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import {
-  collection,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  updateDoc,
-  where,
-} from "firebase/firestore";
-import { db } from "../FirebaseConfig";
+  resolveAlert,
+  subscribeActiveAlerts,
+  AlertRecord,
+} from "../Services/rtdb";
 import { useAuth } from "../context/AuthContext";
 
-type AlertDoc = {
-  id: string;
-  treeId?: string;
-  level?: "High" | "Medium" | "Low";
-  message?: string;
-  latitude?: number;
-  longitude?: number;
-  createdAt?: any;
-  resolved?: boolean;
-};
-
-export default function AlertScreen() {
-  const { isAdmin } = useAuth();
-  const [alerts, setAlerts] = useState<AlertDoc[]>([]);
+export default function AlertsScreen() {
+  const { isAdmin, firebaseUser } = useAuth();
+  const [alerts, setAlerts] = useState<AlertRecord[]>([]);
 
   useEffect(() => {
-    const qAlerts = query(
-      collection(db, "alerts"),
-      where("resolved", "==", false),
-      orderBy("createdAt", "desc"),
+    const unsubscribe = subscribeActiveAlerts(setAlerts, (error) =>
+      Alert.alert("Error", String(error)),
     );
-    const unsub = onSnapshot(qAlerts, (snap) => {
-      setAlerts(snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) })));
-    });
-    return () => unsub();
+    return unsubscribe;
   }, []);
 
-  const resolveAlert = async (id: string) => {
+  const handleResolve = async (alertId: string) => {
+    if (!firebaseUser?.uid) return;
+
     try {
-      await updateDoc(doc(db, "alerts", id), { resolved: true });
-    } catch (e: any) {
-      RNAlert.alert("Error", e?.message ?? "Failed to resolve alert");
+      await resolveAlert(alertId, firebaseUser.uid);
+    } catch (error: any) {
+      Alert.alert("Error", error?.message ?? "Failed to resolve alert.");
     }
   };
 
   return (
-    <View style={{ flex: 1, padding: 12 }}>
+    <View style={styles.container}>
       <Text style={styles.title}>Active Alerts</Text>
 
       <FlatList
         data={alerts}
         keyExtractor={(item) => item.id}
-        ListEmptyComponent={
-          <Text style={{ color: "#666", marginTop: 12 }}>
-            No active alerts.
-          </Text>
-        }
+        ListEmptyComponent={<Text style={styles.empty}>No active alerts.</Text>}
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <Text style={styles.level}>Level: {item.level ?? "N/A"}</Text>
-            <Text style={styles.msg}>{item.message ?? "No message"}</Text>
-            {item.treeId ? (
-              <Text style={styles.meta}>Tree: {item.treeId}</Text>
-            ) : null}
+            <Text style={styles.level}>{item.level}</Text>
+            <Text style={styles.message}>{item.message}</Text>
+            <Text style={styles.location}>
+              Lat: {item.latitude.toFixed(5)} | Lng: {item.longitude.toFixed(5)}
+            </Text>
 
             {isAdmin ? (
               <TouchableOpacity
-                style={styles.btn}
-                onPress={() => resolveAlert(item.id)}
+                style={styles.button}
+                onPress={() => handleResolve(item.id)}
               >
-                <Text style={styles.btnText}>Mark as Resolved</Text>
+                <Text style={styles.buttonText}>Resolve Alert</Text>
               </TouchableOpacity>
-            ) : (
-              <Text style={styles.meta}>Only admins can resolve alerts.</Text>
-            )}
+            ) : null}
           </View>
         )}
       />
@@ -93,24 +67,48 @@ export default function AlertScreen() {
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 20, fontWeight: "800", marginBottom: 10 },
+  container: {
+    flex: 1,
+    padding: 16,
+    backgroundColor: "#fff",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    marginBottom: 12,
+  },
+  empty: {
+    color: "#666",
+    textAlign: "center",
+    marginTop: 32,
+  },
   card: {
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-    gap: 6,
+    borderColor: "#e8e8e8",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    gap: 5,
   },
-  level: { fontWeight: "800" },
-  msg: { fontSize: 14 },
-  meta: { color: "#666" },
-  btn: {
-    backgroundColor: "#111",
-    padding: 10,
+  level: {
+    fontWeight: "900",
+    color: "#c10000",
+  },
+  message: {
+    fontWeight: "600",
+  },
+  location: {
+    color: "#666",
+  },
+  button: {
+    marginTop: 8,
+    backgroundColor: "#1b6e21",
+    padding: 12,
     borderRadius: 10,
     alignItems: "center",
-    marginTop: 6,
   },
-  btnText: { color: "#fff", fontWeight: "700" },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "700",
+  },
 });

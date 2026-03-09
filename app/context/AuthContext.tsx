@@ -7,27 +7,16 @@ import React, {
   useState,
 } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
+import { auth } from "../FirebaseConfig";
 import {
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { auth, db } from "..//FirebaseConfig";
-
-type Role = "user" | "admin";
-
-type AppUser = {
-  uid: string;
-  email: string | null;
-  name?: string;
-  role: Role;
-};
+  getUserProfile,
+  upsertUserProfile,
+  UserProfile,
+} from "../Services/rtdb";
 
 type AuthContextType = {
   firebaseUser: User | null;
-  appUser: AppUser | null;
+  appUser: UserProfile | null;
   loading: boolean;
   refreshProfile: () => Promise<void>;
   logout: () => Promise<void>;
@@ -38,59 +27,39 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
-  const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [appUser, setAppUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadProfile = async (user: User) => {
-    const ref = doc(db, "users", user.uid);
-    const snap = await getDoc(ref);
+    const profile = await getUserProfile(user.uid);
 
-    if (!snap.exists()) {
-      // create default profile if missing
-      await setDoc(ref, {
-        uid: user.uid,
-        email: user.email ?? null,
-        name: user.displayName ?? "",
-        role: "user",
-        createdAt: serverTimestamp(),
-        lastLoginAt: serverTimestamp(),
-      });
-
-      setAppUser({
-        uid: user.uid,
-        email: user.email ?? null,
-        name: user.displayName ?? "",
-        role: "user",
-      });
-      return;
-    }
-
-    const data = snap.data() as any;
-
-    // update lastLoginAt
-    try {
-      await updateDoc(ref, { lastLoginAt: serverTimestamp() });
-    } catch {}
-
-    setAppUser({
+    const next: UserProfile = profile ?? {
       uid: user.uid,
       email: user.email ?? null,
-      name: data?.name ?? user.displayName ?? "",
-      role: (data?.role as Role) ?? "user",
-    });
+      name: user.displayName ?? "",
+      role: "user",
+    };
+
+    await upsertUserProfile(next);
+    setAppUser(next);
   };
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setFirebaseUser(u);
+
       if (!u) {
         setAppUser(null);
         setLoading(false);
         return;
       }
+
       setLoading(true);
-      await loadProfile(u);
-      setLoading(false);
+      try {
+        await loadProfile(u);
+      } finally {
+        setLoading(false);
+      }
     });
 
     return () => unsub();
@@ -99,8 +68,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = async () => {
     if (!firebaseUser) return;
     setLoading(true);
-    await loadProfile(firebaseUser);
-    setLoading(false);
+    try {
+      await loadProfile(firebaseUser);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const logout = async () => {

@@ -1,9 +1,8 @@
-// app/(tabs)/_layout.tsx
-import { Tabs } from "expo-router";
 import React from "react";
+import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function TabLayout() {
+export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
@@ -11,52 +10,45 @@ export default function TabLayout() {
         tabBarActiveTintColor: "#1b6e21",
         tabBarInactiveTintColor: "#777",
         tabBarStyle: {
-          height: 60,
+          height: 62,
           paddingBottom: 6,
           paddingTop: 6,
         },
       }}
     >
-      {/* ALERTS TAB */}
-      <Tabs.Screen
-        name="alerts"
-        options={{
-          title: "Alerts",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="warning-outline" size={size} color={color} />
-          ),
-        }}
-      />
-
-      {/* EXPLORE TAB */}
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: "Explore",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="leaf-outline" size={size} color={color} />
-          ),
-        }}
-      />
-
-      {/* ANALYTICS TAB */}
-      <Tabs.Screen
-        name="analytics"
-        options={{
-          title: "Analytics",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bar-chart-outline" size={size} color={color} />
-          ),
-        }}
-      />
-
-      {/* DASHBOARD TAB */}
       <Tabs.Screen
         name="dashboard"
         options={{
           title: "Dashboard",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="speedometer-outline" size={size} color={color} />
+            <Ionicons name="speedometer-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="map"
+        options={{
+          title: "Map",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="map-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="analytics"
+        options={{
+          title: "Analytics",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bar-chart-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="alerts"
+        options={{
+          title: "Alerts",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="warning-outline" color={color} size={size} />
           ),
         }}
       />

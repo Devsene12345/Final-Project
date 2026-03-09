@@ -1,4 +1,3 @@
-// app/(tabs)/analytics.tsx
 import React from "react";
 import AnalyticsScreen from "../Analytics";
 

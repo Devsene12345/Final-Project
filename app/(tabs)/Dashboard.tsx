@@ -1,269 +1,167 @@
-// app/(tabs)/dashboard.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  View,
+  Alert,
+  ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
-  StyleSheet,
-  ScrollView,
+  View,
 } from "react-native";
 import { useRouter } from "expo-router";
 import {
-  collection,
-  onSnapshot,
-  query,
-  where,
-  orderBy,
-} from "firebase/firestore";
-import { db } from "../FirebaseConfig";
+  subscribeActiveAlerts,
+  subscribeVerifiedTrees,
+  TreeRecord,
+  AlertRecord,
+} from "../Services/rtdb";
 import { useAuth } from "../context/AuthContext";
-import { Ionicons } from "@expo/vector-icons";
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { appUser, logout } = useAuth();
+  const { logout } = useAuth();
 
-  const [trees, setTrees] = useState<{ id: string; [key: string]: any }[]>([]);
-  const [alerts, setAlerts] = useState<{ id: string; [key: string]: any }[]>(
-    [],
-  );
+  const [trees, setTrees] = useState<TreeRecord[]>([]);
+  const [alerts, setAlerts] = useState<AlertRecord[]>([]);
 
-  // Load verified trees
   useEffect(() => {
-    const q = query(collection(db, "trees"), where("verified", "==", true));
-    return onSnapshot(q, (snap) =>
-      setTrees(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    const unsubscribeTrees = subscribeVerifiedTrees(setTrees, (error) =>
+      Alert.alert("Error", String(error)),
     );
+
+    const unsubscribeAlerts = subscribeActiveAlerts(setAlerts, (error) =>
+      Alert.alert("Error", String(error)),
+    );
+
+    return () => {
+      unsubscribeTrees();
+      unsubscribeAlerts();
+    };
   }, []);
 
-  // Load active alerts
-  useEffect(() => {
-    const qAlerts = query(
-      collection(db, "alerts"),
-      where("resolved", "==", false),
-      orderBy("createdAt", "desc"),
-    );
-    return onSnapshot(qAlerts, (snap) =>
-      setAlerts(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-    );
-  }, []);
-
-  const totalTrees = trees.length;
-  const riskTrees = trees.filter((t) => t.riskLevel === "High").length;
-
-  // Species distribution
-  const speciesCount = trees.reduce(
-    (acc, t) => {
-      const key = t.species || "Other";
-      (acc as Record<string, number>)[key] =
-        ((acc as Record<string, number>)[key] || 0) + 1;
-      return acc;
-    },
-    { Oak: 0, Maple: 0, Pine: 0, Other: 0 },
-  );
-
-  const percent = (val: number) => ((val / (totalTrees || 1)) * 100).toFixed(1);
+  const stats = useMemo(() => {
+    const riskTrees = trees.filter((tree) => tree.riskLevel === "High").length;
+    return {
+      totalTrees: trees.length,
+      riskTrees,
+    };
+  }, [trees]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* ---------------- HEADER ---------------- */}
-      <Text style={styles.headerTitle}>🌳 Tree Monitoring Dashboard</Text>
+      <Text style={styles.title}>🌳 Tree Monitoring Dashboard</Text>
 
-      {/* ---------------- CARDS ---------------- */}
-      <View style={styles.cardRow}>
-        <View style={[styles.infoCard, { backgroundColor: "#e8f8ee" }]}>
-          <Text style={styles.cardIcon}>🍃</Text>
+      <View style={styles.row}>
+        <View style={[styles.card, { backgroundColor: "#e8f8ee" }]}>
           <Text style={styles.cardLabel}>Total Trees</Text>
-          <Text style={styles.cardNumber}>{totalTrees}</Text>
+          <Text style={styles.cardValue}>{stats.totalTrees}</Text>
         </View>
 
-        <View style={[styles.infoCard, { backgroundColor: "#ffe8e8" }]}>
-          <Text style={styles.cardIcon}>⚠️</Text>
+        <View style={[styles.card, { backgroundColor: "#ffe8e8" }]}>
           <Text style={styles.cardLabel}>Risk Trees</Text>
-          <Text style={styles.cardNumber}>{riskTrees}</Text>
+          <Text style={styles.cardValue}>{stats.riskTrees}</Text>
         </View>
       </View>
 
-      {/* ---------------- MAP BUTTON ---------------- */}
       <TouchableOpacity
-        style={styles.mapBtn}
+        style={styles.button}
         onPress={() => router.push("/map")}
       >
-        <Text style={styles.mapBtnText}>Open Tree Map</Text>
+        <Text style={styles.buttonText}>Open Tree Map</Text>
       </TouchableOpacity>
 
-      {/* ---------------- ADD TREE BUTTON ---------------- */}
       <TouchableOpacity
-        style={styles.addBtn}
+        style={styles.button}
         onPress={() => router.push("/modal")}
       >
-        <Text style={styles.addBtnText}>Add Tree</Text>
+        <Text style={styles.buttonText}>Add Tree</Text>
       </TouchableOpacity>
 
-      {/* ---------------- HEALTH TRENDS ---------------- */}
-      <Text style={styles.sectionTitle}>Tree Health Trends</Text>
-      <View style={styles.trendBox}>
-        <View style={styles.trendBar}></View>
-      </View>
-
-      {/* ---------------- RECENT ALERTS ---------------- */}
       <Text style={styles.sectionTitle}>Recent Alerts</Text>
+      {alerts.length === 0 ? (
+        <Text style={styles.empty}>No active alerts.</Text>
+      ) : null}
 
-      {alerts.slice(0, 3).map((alert) => (
+      {alerts.slice(0, 5).map((alert) => (
         <View key={alert.id} style={styles.alertCard}>
-          <View
-            style={[
-              styles.dot,
-              {
-                backgroundColor:
-                  alert.level === "High"
-                    ? "red"
-                    : alert.level === "Medium"
-                      ? "yellow"
-                      : "green",
-              },
-            ]}
-          ></View>
-
-          <Text style={styles.alertText}>{alert.message || "Alert"}</Text>
-
-          <Text style={styles.alertTime}>
-            {formatTime(alert.createdAt?.seconds)}
-          </Text>
+          <Text style={styles.alertLevel}>{alert.level}</Text>
+          <Text style={styles.alertMessage}>{alert.message}</Text>
         </View>
       ))}
 
-      <TouchableOpacity onPress={() => router.push("/alerts")}>
-        <Text style={styles.viewAll}>View All Alerts</Text>
-      </TouchableOpacity>
-
-      {/* ---------------- LOGOUT ---------------- */}
       <TouchableOpacity
-        style={styles.logoutBtn}
-        onPress={() => router.push("/Login")}
+        style={[styles.button, { backgroundColor: "#555" }]}
+        onPress={async () => {
+          await logout();
+          router.replace("/Login");
+        }}
       >
-        <Ionicons name="map" size={30} color="#fff" />
-        <Text style={styles.logoutText}>Logout</Text>
+        <Text style={styles.buttonText}>Logout</Text>
       </TouchableOpacity>
-
-      <View style={{ height: 50 }} />
     </ScrollView>
   );
 }
 
-// Convert timestamp to "2 hours", "1 day", etc.
-function formatTime(seconds: number | undefined) {
-  if (!seconds) return "";
-  const diff = Date.now() / 1000 - seconds;
-  if (diff < 3600) return Math.floor(diff / 60) + " min";
-  if (diff < 86400) return Math.floor(diff / 3600) + " hours";
-  return Math.floor(diff / 86400) + " days";
-}
-
 const styles = StyleSheet.create({
-  container: { padding: 16 },
-  headerTitle: {
-    fontSize: 22,
+  container: {
+    padding: 20,
+    gap: 14,
+  },
+  title: {
+    fontSize: 24,
     fontWeight: "800",
-    marginBottom: 16,
     textAlign: "center",
   },
-
-  // Cards
-  cardRow: { flexDirection: "row", justifyContent: "space-between" },
-  infoCard: {
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  card: {
     width: "48%",
-    borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: 10,
-    alignItems: "center",
-  },
-  cardIcon: { fontSize: 26 },
-  cardLabel: { fontSize: 14, color: "#333" },
-  cardNumber: { fontSize: 28, fontWeight: "800", marginTop: 4 },
-
-  // Buttons
-  mapBtn: {
-    backgroundColor: "#1b6e21",
+    borderRadius: 14,
     padding: 16,
-    borderRadius: 16,
-    marginTop: 20,
     alignItems: "center",
   },
-  mapBtnText: { color: "#fff", fontSize: 18, fontWeight: "700" },
-
-  addBtn: {
+  cardLabel: {
+    fontWeight: "700",
+    color: "#333",
+  },
+  cardValue: {
+    fontSize: 32,
+    fontWeight: "900",
+    marginTop: 8,
+  },
+  button: {
     backgroundColor: "#1b6e21",
+    borderRadius: 14,
     padding: 16,
-    borderRadius: 16,
-    marginTop: 10,
     alignItems: "center",
   },
-  addBtnText: { color: "#fff", fontSize: 18, fontWeight: "700" },
-
-  // Sections
+  buttonText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 16,
+  },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "700",
-    marginVertical: 12,
-  },
-
-  trendBox: {
-    backgroundColor: "#fff",
-    height: 80,
-    borderRadius: 16,
-    padding: 12,
-    justifyContent: "center",
-  },
-  trendBar: {
-    height: 6,
-    width: "85%",
-    backgroundColor: "#8fd189",
-    borderRadius: 10,
-  },
-
-  barTrack: {
-    height: 10,
-    backgroundColor: "#e0e0e0",
-    borderRadius: 10,
+    fontWeight: "800",
     marginTop: 6,
   },
-  barFill: {
-    height: 10,
-    borderRadius: 10,
+  empty: {
+    color: "#666",
   },
-  speciesLabel: { fontSize: 15, fontWeight: "500" },
-
-  // Alerts
   alertCard: {
     backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#ececec",
+    borderRadius: 12,
     padding: 14,
-    borderRadius: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
+    gap: 4,
   },
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 12,
+  alertLevel: {
+    fontWeight: "800",
+    color: "#b10000",
   },
-  alertText: { flex: 1, fontSize: 16 },
-  alertTime: { color: "#666" },
-  viewAll: {
-    textAlign: "center",
-    color: "#0a8638",
-    fontWeight: "700",
-    marginVertical: 12,
+  alertMessage: {
+    color: "#333",
   },
-
-  logoutBtn: {
-    backgroundColor: "#d72626",
-    padding: 16,
-    borderRadius: 14,
-    marginTop: 10,
-    alignItems: "center",
-  },
-  logoutText: { color: "#fff", fontSize: 16, fontWeight: "700" },
 });

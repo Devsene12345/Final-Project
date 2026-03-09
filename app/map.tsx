@@ -1,4 +1,3 @@
-// app/(tabs)/map.tsx
 import React from "react";
 import MapViewScreen from "./MapView";
 

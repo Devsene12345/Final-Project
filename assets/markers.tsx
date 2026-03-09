@@ -1,5 +1,7 @@
-// markers.tsx
-// Static tree marker data extracted from My_Places_EPSG_32644.csv
+// assets/markers.tsx
+// Tree marker data (seeded from My_Places_EPSG_32644.csv) + risk levels + local images
+
+import type { ImageSourcePropType } from "react-native";
 
 export interface TreeMarker {
   id: number;
@@ -8,7 +10,68 @@ export interface TreeMarker {
   longitude: number;
   height: number;
   risklevel: "Low" | "Medium" | "High";
+  image?: ImageSourcePropType;
 }
+
+export const treeImages: Record<number, ImageSourcePropType> = {
+  1: require("./images/1.jpeg"),
+  2: require("./images/2.jpeg"),
+  3: require("./images/3.jpeg"),
+  6: require("./images/6.jpeg"),
+  7: require("./images/7.jpeg"),
+  8: require("./images/8.jpeg"),
+  9: require("./images/9.jpeg"),
+  10: require("./images/10.jpeg"),
+  11: require("./images/11.jpeg"),
+  12: require("./images/12.jpeg"),
+  13: require("./images/13.jpeg"),
+  14: require("./images/14.jpeg"),
+  15: require("./images/15.jpeg"),
+  16: require("./images/16.jpeg"),
+  17: require("./images/17.jpeg"),
+  18: require("./images/18.jpeg"),
+  19: require("./images/19.jpeg"),
+  20: require("./images/20.jpeg"),
+  21: require("./images/21.jpeg"),
+  22: require("./images/22.jpeg"),
+  23: require("./images/23.jpeg"),
+  24: require("./images/24.jpeg"),
+  25: require("./images/25.jpeg"),
+  26: require("./images/26.jpeg"),
+  27: require("./images/27.jpeg"),
+  28: require("./images/28.jpeg"),
+  29: require("./images/29.jpeg"),
+  30: require("./images/30.jpeg"),
+  31: require("./images/31.jpeg"),
+  32: require("./images/32.jpeg"),
+  33: require("./images/33.jpeg"),
+  34: require("./images/34.jpeg"),
+  35: require("./images/35.jpeg"),
+  36: require("./images/36.jpeg"),
+  37: require("./images/37.jpeg"),
+  38: require("./images/38.jpeg"),
+  39: require("./images/39.jpeg"),
+  40: require("./images/40.jpeg"),
+  41: require("./images/41.jpeg"),
+  42: require("./images/42.jpeg"),
+  43: require("./images/43.jpeg"),
+  44: require("./images/44.jpeg"),
+  45: require("./images/45.jpeg"),
+  48: require("./images/48.jpeg"),
+  49: require("./images/49.jpeg"),
+  50: require("./images/50.jpeg"),
+  51: require("./images/51.jpeg"),
+  52: require("./images/52.jpeg"),
+  53: require("./images/53.jpeg"),
+  54: require("./images/54.jpeg"),
+  55: require("./images/55.jpeg"),
+  56: require("./images/56.jpeg"),
+  57: require("./images/57.jpeg"),
+  58: require("./images/58.jpeg"),
+  59: require("./images/59.jpeg"),
+  60: require("./images/60.jpeg"),
+  61: require("./images/61.jpeg"),
+};
 
 export const treeMarkers: TreeMarker[] = [
   {
@@ -18,6 +81,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0483321,
     height: 632.1,
     risklevel: "Low",
+    image: treeImages[6] ?? treeImages[1],
   },
   {
     id: 7,
@@ -26,6 +90,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0773486,
     height: 671.9,
     risklevel: "Low",
+    image: treeImages[7] ?? treeImages[1],
   },
   {
     id: 18,
@@ -34,6 +99,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0482076,
     height: 615.7,
     risklevel: "Low",
+    image: treeImages[18] ?? treeImages[1],
   },
   {
     id: 19,
@@ -42,6 +108,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0483672,
     height: 641.4,
     risklevel: "Low",
+    image: treeImages[19] ?? treeImages[1],
   },
   {
     id: 20,
@@ -50,6 +117,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0482035,
     height: 641.4,
     risklevel: "Low",
+    image: treeImages[20] ?? treeImages[1],
   },
   {
     id: 21,
@@ -58,6 +126,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0543706,
     height: 574.5,
     risklevel: "Low",
+    image: treeImages[21] ?? treeImages[1],
   },
   {
     id: 22,
@@ -66,6 +135,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0547989,
     height: 574.5,
     risklevel: "Low",
+    image: treeImages[22] ?? treeImages[1],
   },
   {
     id: 23,
@@ -74,6 +144,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0551034,
     height: 578.1,
     risklevel: "High",
+    image: treeImages[23] ?? treeImages[1],
   },
   {
     id: 24,
@@ -82,6 +153,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0557294,
     height: 569.4,
     risklevel: "Medium",
+    image: treeImages[24] ?? treeImages[1],
   },
   {
     id: 25,
@@ -90,6 +162,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0563429,
     height: 583.0,
     risklevel: "Medium",
+    image: treeImages[25] ?? treeImages[1],
   },
   {
     id: 26,
@@ -98,6 +171,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.05673,
     height: 580.5,
     risklevel: "Medium",
+    image: treeImages[26] ?? treeImages[1],
   },
   {
     id: 27,
@@ -106,6 +180,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.056741,
     height: 580.5,
     risklevel: "Medium",
+    image: treeImages[27] ?? treeImages[1],
   },
   {
     id: 28,
@@ -114,6 +189,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0567471,
     height: 580.5,
     risklevel: "High",
+    image: treeImages[28] ?? treeImages[1],
   },
   {
     id: 29,
@@ -122,6 +198,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0569132,
     height: 577.2,
     risklevel: "High",
+    image: treeImages[29] ?? treeImages[1],
   },
   {
     id: 30,
@@ -130,6 +207,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0555566,
     height: 578.1,
     risklevel: "High",
+    image: treeImages[30] ?? treeImages[1],
   },
   {
     id: 31,
@@ -138,6 +216,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0581226,
     height: 575.4,
     risklevel: "High",
+    image: treeImages[31] ?? treeImages[1],
   },
   {
     id: 32,
@@ -146,6 +225,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0581953,
     height: 575.4,
     risklevel: "High",
+    image: treeImages[32] ?? treeImages[1],
   },
   {
     id: 33,
@@ -154,6 +234,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0582564,
     height: 574.2,
     risklevel: "High",
+    image: treeImages[33] ?? treeImages[1],
   },
   {
     id: 34,
@@ -162,6 +243,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0580618,
     height: 575.4,
     risklevel: "High",
+    image: treeImages[34] ?? treeImages[1],
   },
   {
     id: 35,
@@ -170,6 +252,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0579906,
     height: 574.3,
     risklevel: "High",
+    image: treeImages[35] ?? treeImages[1],
   },
   {
     id: 36,
@@ -178,6 +261,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0575646,
     height: 576.4,
     risklevel: "High",
+    image: treeImages[36] ?? treeImages[1],
   },
   {
     id: 37,
@@ -186,6 +270,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.058425,
     height: 572.8,
     risklevel: "Medium",
+    image: treeImages[37] ?? treeImages[1],
   },
   {
     id: 38,
@@ -194,6 +279,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.058993,
     height: 572.8,
     risklevel: "Medium",
+    image: treeImages[38] ?? treeImages[1],
   },
   {
     id: 39,
@@ -202,6 +288,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0633548,
     height: 564.5,
     risklevel: "High",
+    image: treeImages[39] ?? treeImages[1],
   },
   {
     id: 40,
@@ -210,6 +297,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0625334,
     height: 562.3,
     risklevel: "Medium",
+    image: treeImages[40] ?? treeImages[1],
   },
   {
     id: 41,
@@ -218,6 +306,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0624826,
     height: 562.3,
     risklevel: "Medium",
+    image: treeImages[41] ?? treeImages[1],
   },
   {
     id: 42,
@@ -226,6 +315,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.06154,
     height: 566,
     risklevel: "High",
+    image: treeImages[42] ?? treeImages[1],
   },
   {
     id: 43,
@@ -234,6 +324,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0612876,
     height: 563.8,
     risklevel: "High",
+    image: treeImages[43] ?? treeImages[1],
   },
   {
     id: 44,
@@ -242,6 +333,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0610903,
     height: 563.8,
     risklevel: "High",
+    image: treeImages[44] ?? treeImages[1],
   },
   {
     id: 45,
@@ -250,6 +342,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0609766,
     height: 572.58,
     risklevel: "High",
+    image: treeImages[45] ?? treeImages[1],
   },
   {
     id: 46,
@@ -258,6 +351,7 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0608635,
     height: 563.8,
     risklevel: "High",
+    image: treeImages[46] ?? treeImages[1],
   },
   {
     id: 47,
@@ -266,5 +360,150 @@ export const treeMarkers: TreeMarker[] = [
     longitude: 81.0588453,
     height: 572.8,
     risklevel: "Medium",
+    image: treeImages[47] ?? treeImages[1],
+  },
+  {
+    id: 48,
+    description: "My Place",
+    latitude: 6.990356594,
+    longitude: 81.05877644,
+    height: 572.8,
+    risklevel: "Low",
+    image: treeImages[48] ?? treeImages[1],
+  },
+  {
+    id: 49,
+    description: "Thekka Tree 3, Vihara Maha Devi college",
+    latitude: 6.9903512,
+    longitude: 81.0587676,
+    height: 576.74,
+    risklevel: "Medium",
+    image: treeImages[49] ?? treeImages[1],
+  },
+  {
+    id: 50,
+    description: "Roba Rosiya Tree2, ViharaMaha Devi college",
+    latitude: 6.9903341,
+    longitude: 81.0586218,
+    height: 572.8,
+    risklevel: "Low",
+    image: treeImages[50] ?? treeImages[1],
+  },
+  {
+    id: 51,
+    description: "Alstonea Tree. Badulla - Bandarawella Road.",
+    latitude: 6.9902316,
+    longitude: 81.0557916,
+    height: 581.0,
+    risklevel: "High",
+    image: treeImages[51] ?? treeImages[1],
+  },
+  {
+    id: 52,
+    description: "TEAK Tree 2. Badulla - Bandarawella Road",
+    latitude: 6.9900093,
+    longitude: 81.0560864,
+    height: 581.0,
+    risklevel: "High",
+    image: treeImages[52] ?? treeImages[1],
+  },
+  {
+    id: 53,
+    description: "Palm Tree 3. Senanayake Park",
+    latitude: 6.9901497,
+    longitude: 81.055612,
+    height: 584.3,
+    risklevel: "High",
+    image: treeImages[53] ?? treeImages[1],
+  },
+  {
+    id: 54,
+    description: "Palm Tree 2. Senanayake Park",
+    latitude: 6.9901985,
+    longitude: 81.0557298,
+    height: 577.1,
+    risklevel: "Medium",
+    image: treeImages[54] ?? treeImages[1],
+  },
+  {
+    id: 55,
+    description: "Palm Tree 4. Senanayake park",
+    latitude: 6.99008,
+    longitude: 81.0554263,
+    height: 574.0,
+    risklevel: "Low",
+    image: treeImages[55] ?? treeImages[1],
+  },
+  {
+    id: 56,
+    description: "Palm Tree 5. Senanayake Park",
+    latitude: 6.990443,
+    longitude: 81.0550159,
+    height: 574.0,
+    risklevel: "Low",
+    image: treeImages[56] ?? treeImages[1],
+  },
+  {
+    id: 57,
+    description: "Palm Tree 6. Senanayake Park",
+    latitude: 6.990443,
+    longitude: 81.0550168,
+    height: 574.0,
+    risklevel: "Low",
+    image: treeImages[57] ?? treeImages[1],
+  },
+  {
+    id: 58,
+    description: "Palm Tree 7. Senanayake Park",
+    latitude: 6.9905038,
+    longitude: 81.0549887,
+    height: 574.0,
+    risklevel: "Low",
+    image: treeImages[58] ?? treeImages[1],
+  },
+  {
+    id: 59,
+    description: "Ficus(Nuga) Tree. Hunukotuwa Road",
+    latitude: 6.9905608,
+    longitude: 81.054357,
+    height: 573.6,
+    risklevel: "Low",
+    image: treeImages[59] ?? treeImages[1],
+  },
+  {
+    id: 60,
+    description: "Sal Tree. Welle kade Junction",
+    latitude: 6.9908579,
+    longitude: 81.0545598,
+    height: 574.1,
+    risklevel: "Low",
+    image: treeImages[60] ?? treeImages[1],
+  },
+  {
+    id: 61,
+    description: "Mahogany tree4. Senanayake Park",
+    latitude: 6.9905504,
+    longitude: 81.0547658,
+    height: 573.2,
+    risklevel: "Low",
+    image: treeImages[61] ?? treeImages[1],
+  },
+  {
+    id: 62,
+    description: "Mahogany Tree 5. Senanayake Park",
+    latitude: 6.9905503,
+    longitude: 81.0547662,
+    height: 573.2,
+    risklevel: "Low",
+    image: treeImages[62] ?? treeImages[1],
+  },
+  {
+    id: 63,
+    description: "Jack Tree. Senanayake Park",
+    latitude: 6.9905622,
+    longitude: 81.0547742,
+    height: 574.0,
+    risklevel: "Low",
+    image: treeImages[63] ?? treeImages[1],
   },
 ];
