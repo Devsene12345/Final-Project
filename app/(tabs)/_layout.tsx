@@ -1,14 +1,17 @@
 import React from "react";
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../context/AuthContext";
 
-export default function TabsLayout() {
+export default function TabLayout() {
+  const { isAdmin } = useAuth();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: "#1b6e21",
-        tabBarInactiveTintColor: "#777",
+        tabBarInactiveTintColor: "#444",
         tabBarStyle: {
           height: 62,
           paddingBottom: 6,
@@ -55,6 +58,18 @@ export default function TabsLayout() {
           ),
         }}
       />
+
+      {isAdmin && (
+        <Tabs.Screen
+          name="admin"
+          options={{
+            title: "Admin",
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="shield-outline" size={size} color={color} />
+            ),
+          }}
+        />
+      )}
     </Tabs>
   );
 }

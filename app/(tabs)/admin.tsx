@@ -8,10 +8,15 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import MapView, { Callout, Marker } from "react-native-maps";
+import { onValue, ref } from "firebase/database";
+import { rtdb } from "../FirebaseConfig";
 import { useAuth } from "../context/AuthContext";
 import {
+  AlertRecord,
   TreeRecord,
   UserProfile,
+  deleteTree,
   rejectTree,
   removeTreeImageByIndex,
   removeUserFromSystem,
@@ -23,15 +28,45 @@ import {
   verifyTree,
 } from "../Services/rtdb";
 
-type AdminTabKey = "pending" | "users" | "images";
+type AdminSection =
+  | "pending"
+  | "users"
+  | "images"
+  | "map"
+  | "risk"
+  | "activity";
+
+type MarkerClickRecord = {
+  id: string;
+  markerId?: number;
+  treeName?: string;
+  scientificName?: string;
+  riskLevel?: "Low" | "Medium" | "High";
+  latitude?: number;
+  longitude?: number;
+  clickedAt?: number;
+};
+
+function getPinColor(riskLevel?: "Low" | "Medium" | "High") {
+  if (riskLevel === "High") return "red";
+  if (riskLevel === "Medium") return "orange";
+  return "blue";
+}
+
+function formatDate(value?: number) {
+  if (!value) return "Unknown time";
+  return new Date(value).toLocaleString();
+}
 
 export default function AdminScreen() {
   const { isAdmin, appUser } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<AdminTabKey>("pending");
+  const [activeSection, setActiveSection] = useState<AdminSection>("pending");
   const [pendingTrees, setPendingTrees] = useState<TreeRecord[]>([]);
   const [allTrees, setAllTrees] = useState<TreeRecord[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [markerClicks, setMarkerClicks] = useState<MarkerClickRecord[]>([]);
+  const [alerts, setAlerts] = useState<AlertRecord[]>([]);
 
   useEffect(() => {
     const unsubPending = subscribePendingTrees(setPendingTrees, (e) =>
@@ -46,10 +81,36 @@ export default function AdminScreen() {
       Alert.alert("Error", String((e as any)?.message ?? e)),
     );
 
+    const markerClicksRef = ref(rtdb, "markerClicks");
+    const unsubMarkerClicks = onValue(markerClicksRef, (snapshot) => {
+      const data = snapshot.val() ?? {};
+      const list: MarkerClickRecord[] = Object.keys(data)
+        .map((id) => ({
+          id,
+          ...data[id],
+        }))
+        .reverse();
+      setMarkerClicks(list);
+    });
+
+    const alertsRef = ref(rtdb, "alerts");
+    const unsubAlerts = onValue(alertsRef, (snapshot) => {
+      const data = snapshot.val() ?? {};
+      const list: AlertRecord[] = Object.keys(data)
+        .map((id) => ({
+          id,
+          ...data[id],
+        }))
+        .reverse();
+      setAlerts(list);
+    });
+
     return () => {
       unsubPending();
       unsubUsers();
       unsubTrees();
+      unsubMarkerClicks();
+      unsubAlerts();
     };
   }, []);
 
@@ -60,6 +121,21 @@ export default function AdminScreen() {
       ),
     [allTrees],
   );
+
+  const highRiskTrees = useMemo(
+    () => allTrees.filter((tree) => tree.riskLevel === "High"),
+    [allTrees],
+  );
+
+  const initialMapRegion = useMemo(() => {
+    const firstTree = allTrees[0];
+    return {
+      latitude: firstTree?.latitude ?? 6.991,
+      longitude: firstTree?.longitude ?? 81.056,
+      latitudeDelta: 0.08,
+      longitudeDelta: 0.08,
+    };
+  }, [allTrees]);
 
   const onVerify = async (treeId: string) => {
     if (!appUser?.uid) return;
@@ -92,6 +168,28 @@ export default function AdminScreen() {
     ]);
   };
 
+  const onDeleteTree = async (treeId: string) => {
+    Alert.alert(
+      "Delete Tree",
+      "Are you sure you want to permanently remove this tree?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteTree(treeId);
+              Alert.alert("Success", "Tree deleted.");
+            } catch (error: any) {
+              Alert.alert("Error", error?.message ?? "Failed to delete tree.");
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const onPromoteDemote = async (user: UserProfile) => {
     const nextRole = user.role === "admin" ? "user" : "admin";
 
@@ -121,7 +219,7 @@ export default function AdminScreen() {
     Alert.alert(
       nextDisabled ? "Block User" : "Unblock User",
       nextDisabled
-        ? "This user will no longer be allowed to use the app."
+        ? "This user will no longer be able to use the app."
         : "This user will be allowed to use the app again.",
       [
         { text: "Cancel", style: "cancel" },
@@ -152,7 +250,7 @@ export default function AdminScreen() {
 
     Alert.alert(
       "Remove User From System",
-      "This will remove the user profile and their submitted trees from Realtime Database. The Authentication account itself will remain in Firebase Authentication.",
+      "This will remove the user profile and their submitted trees from Realtime Database. The Firebase Authentication account itself will remain.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -174,7 +272,7 @@ export default function AdminScreen() {
   const onRemoveImage = async (treeId: string, imageIndex: number) => {
     Alert.alert(
       "Remove Image",
-      "Remove this image reference from Firebase Realtime Database?",
+      "Remove this image from Firebase Realtime Database?",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -198,7 +296,7 @@ export default function AdminScreen() {
       <View style={styles.center}>
         <Text style={styles.deniedTitle}>Admin only</Text>
         <Text style={styles.deniedText}>
-          Login using the admin email and password to access the admin panel.
+          Login using the admin account to access the admin panel.
         </Text>
       </View>
     );
@@ -208,55 +306,41 @@ export default function AdminScreen() {
     <View style={styles.page}>
       <Text style={styles.title}>Admin Panel</Text>
 
-      <View style={styles.tabRow}>
-        <TouchableOpacity
-          style={[
-            styles.tabBtn,
-            activeTab === "pending" && styles.tabBtnActive,
-          ]}
-          onPress={() => setActiveTab("pending")}
-        >
-          <Text
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.sectionTabs}
+      >
+        {[
+          { key: "pending", label: "Pending Trees" },
+          { key: "users", label: "Users" },
+          { key: "images", label: "Images" },
+          { key: "map", label: "Map Control" },
+          { key: "risk", label: "Risk Panel" },
+          { key: "activity", label: "Activity" },
+        ].map((item) => (
+          <TouchableOpacity
+            key={item.key}
             style={[
-              styles.tabText,
-              activeTab === "pending" && styles.tabTextActive,
+              styles.sectionBtn,
+              activeSection === item.key && styles.sectionBtnActive,
             ]}
+            onPress={() => setActiveSection(item.key as AdminSection)}
           >
-            Pending Trees
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === "users" && styles.tabBtnActive]}
-          onPress={() => setActiveTab("users")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "users" && styles.tabTextActive,
-            ]}
-          >
-            Users
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tabBtn, activeTab === "images" && styles.tabBtnActive]}
-          onPress={() => setActiveTab("images")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "images" && styles.tabTextActive,
-            ]}
-          >
-            Images
-          </Text>
-        </TouchableOpacity>
-      </View>
+            <Text
+              style={[
+                styles.sectionBtnText,
+                activeSection === item.key && styles.sectionBtnTextActive,
+              ]}
+            >
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
 
       <ScrollView contentContainerStyle={styles.content}>
-        {activeTab === "pending" && (
+        {activeSection === "pending" && (
           <>
             {pendingTrees.length === 0 ? (
               <Text style={styles.empty}>No pending trees.</Text>
@@ -299,7 +383,7 @@ export default function AdminScreen() {
           </>
         )}
 
-        {activeTab === "users" && (
+        {activeSection === "users" && (
           <>
             {users.length === 0 ? (
               <Text style={styles.empty}>No users found.</Text>
@@ -339,9 +423,7 @@ export default function AdminScreen() {
                     style={styles.removeBtn}
                     onPress={() => onRemoveUserFromSystem(user)}
                   >
-                    <Text style={styles.btnText}>
-                      Remove User Data From System
-                    </Text>
+                    <Text style={styles.btnText}>Remove User Data</Text>
                   </TouchableOpacity>
                 </View>
               ))
@@ -349,7 +431,7 @@ export default function AdminScreen() {
           </>
         )}
 
-        {activeTab === "images" && (
+        {activeSection === "images" && (
           <>
             {treesWithImages.length === 0 ? (
               <Text style={styles.empty}>No tree images found.</Text>
@@ -380,6 +462,148 @@ export default function AdminScreen() {
                       </View>
                     ))}
                   </ScrollView>
+                </View>
+              ))
+            )}
+          </>
+        )}
+
+        {activeSection === "map" && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Admin Map Control</Text>
+            <Text style={styles.meta}>
+              Tap any tree marker and use the popup to review or delete it.
+            </Text>
+
+            <View style={styles.mapContainer}>
+              <MapView style={styles.map} initialRegion={initialMapRegion}>
+                {allTrees.map((tree) => (
+                  <Marker
+                    key={tree.id}
+                    coordinate={{
+                      latitude: Number(tree.latitude),
+                      longitude: Number(tree.longitude),
+                    }}
+                    pinColor={getPinColor(tree.riskLevel)}
+                  >
+                    <Callout tooltip>
+                      <View style={styles.calloutCard}>
+                        {tree.photoUrls?.[0] ? (
+                          <Image
+                            source={{ uri: tree.photoUrls[0] }}
+                            style={styles.calloutImage}
+                          />
+                        ) : null}
+                        <Text style={styles.calloutTitle}>{tree.species}</Text>
+                        <Text style={styles.calloutText}>
+                          Risk: {tree.riskLevel}
+                        </Text>
+                        <Text style={styles.calloutText}>
+                          Health: {tree.health}
+                        </Text>
+                        <Text style={styles.calloutText}>
+                          Lat: {Number(tree.latitude).toFixed(5)}
+                        </Text>
+                        <Text style={styles.calloutText}>
+                          Lng: {Number(tree.longitude).toFixed(5)}
+                        </Text>
+
+                        <TouchableOpacity
+                          style={styles.deleteTreeBtn}
+                          onPress={() => onDeleteTree(tree.id)}
+                        >
+                          <Text style={styles.btnText}>Delete Tree</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </Callout>
+                  </Marker>
+                ))}
+              </MapView>
+            </View>
+          </View>
+        )}
+
+        {activeSection === "risk" && (
+          <>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>High Risk Trees</Text>
+              <Text style={styles.meta}>
+                Total high risk trees: {highRiskTrees.length}
+              </Text>
+              <Text style={styles.meta}>
+                Total alerts in system: {alerts.length}
+              </Text>
+            </View>
+
+            {highRiskTrees.length === 0 ? (
+              <Text style={styles.empty}>No high risk trees found.</Text>
+            ) : (
+              highRiskTrees.map((tree) => (
+                <View key={tree.id} style={styles.card}>
+                  <Text style={styles.cardTitle}>{tree.species}</Text>
+                  <Text style={styles.meta}>Risk Level: {tree.riskLevel}</Text>
+                  <Text style={styles.meta}>Health: {tree.health}</Text>
+                  <Text style={styles.meta}>
+                    Location: {tree.latitude.toFixed(5)},{" "}
+                    {tree.longitude.toFixed(5)}
+                  </Text>
+                  <Text style={styles.meta}>
+                    Submitted by:{" "}
+                    {tree.createdByName ?? tree.createdBy ?? "Unknown"}
+                  </Text>
+
+                  <View style={styles.btnRow}>
+                    {tree.verificationStatus !== "verified" ? (
+                      <TouchableOpacity
+                        style={styles.verifyBtn}
+                        onPress={() => onVerify(tree.id)}
+                      >
+                        <Text style={styles.btnText}>Verify</Text>
+                      </TouchableOpacity>
+                    ) : null}
+
+                    <TouchableOpacity
+                      style={styles.rejectBtn}
+                      onPress={() => onDeleteTree(tree.id)}
+                    >
+                      <Text style={styles.btnText}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
+            )}
+          </>
+        )}
+
+        {activeSection === "activity" && (
+          <>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>User Activity Monitoring</Text>
+              <Text style={styles.meta}>
+                Marker click logs: {markerClicks.length}
+              </Text>
+            </View>
+
+            {markerClicks.length === 0 ? (
+              <Text style={styles.empty}>No activity logs found.</Text>
+            ) : (
+              markerClicks.map((log) => (
+                <View key={log.id} style={styles.card}>
+                  <Text style={styles.cardTitle}>
+                    {log.treeName ?? "Unknown Tree"}
+                  </Text>
+                  <Text style={styles.meta}>
+                    Scientific Name: {log.scientificName ?? "N/A"}
+                  </Text>
+                  <Text style={styles.meta}>
+                    Risk Level: {log.riskLevel ?? "N/A"}
+                  </Text>
+                  <Text style={styles.meta}>
+                    Location: {log.latitude ?? "N/A"}, {log.longitude ?? "N/A"}
+                  </Text>
+                  <Text style={styles.meta}>
+                    Clicked At: {formatDate(log.clickedAt)}
+                  </Text>
                 </View>
               ))
             )}
@@ -419,27 +643,34 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 12,
   },
-  tabRow: {
-    flexDirection: "row",
+  sectionTabs: {
     paddingHorizontal: 12,
-    gap: 8,
-  },
-  tabBtn: {
-    flex: 1,
-    backgroundColor: "#eaeaea",
-    borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 6,
     alignItems: "center",
   },
-  tabBtnActive: {
+
+  sectionBtn: {
+    backgroundColor: "#e6e6e6",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    marginRight: 10,
+    height: 44,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  sectionBtnActive: {
     backgroundColor: "#1b6e21",
   },
-  tabText: {
-    fontWeight: "800",
+
+  sectionBtnText: {
     color: "#333",
-    fontSize: 13,
+    fontWeight: "700",
+    fontSize: 14,
   },
-  tabTextActive: {
+
+  sectionBtnTextActive: {
     color: "#fff",
   },
   content: {
@@ -534,5 +765,45 @@ const styles = StyleSheet.create({
   imageRemoveText: {
     color: "#fff",
     fontWeight: "800",
+  },
+  mapContainer: {
+    marginTop: 12,
+    height: 420,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  map: {
+    flex: 1,
+  },
+  calloutCard: {
+    width: 220,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 10,
+  },
+  calloutImage: {
+    width: "100%",
+    height: 100,
+    borderRadius: 10,
+    marginBottom: 8,
+    backgroundColor: "#ddd",
+  },
+  calloutTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  calloutText: {
+    fontSize: 13,
+    color: "#555",
+    marginBottom: 2,
+    fontWeight: "600",
+  },
+  deleteTreeBtn: {
+    marginTop: 10,
+    backgroundColor: "#8a0000",
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
   },
 });
